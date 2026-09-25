@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#e23b3b" />
+  <!-- "Add to Home Screen" on iPhone launches full screen, without Safari's bars. -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Chamo Kart" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="Chamo Kart: a kart racing game in your browser. Race CPUs in the Copa Chamo or race your friends online." />
+  <title>Chamo Kart</title>
+  <!-- Link previews (iMessage, WhatsApp, Telegram, Slack…). URLs must be absolute. -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Chamo Kart" />
+  <meta property="og:title" content="Chamo Kart: race your friends online!" />
+  <meta property="og:description" content="Join the race! A free kart racing game that runs right in your browser. No download, works on your phone." />
+  <meta property="og:url" content="https://jgrivera.com/chamokart/" />
+  <meta property="og:image" content="https://jgrivera.com/chamokart/og-image.jpg" />
+  <meta property="og:image:secure_url" content="https://jgrivera.com/chamokart/og-image.jpg" />
+  <meta property="og:image:type" content="image/jpeg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Chamo Kart logo with eight racers lined up on the starting grid" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Chamo Kart: race your friends online!" />
+  <meta name="twitter:description" content="Join the race! A free kart racing game that runs right in your browser." />
+  <meta name="twitter:image" content="https://jgrivera.com/chamokart/og-image.jpg" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css?v=7" />
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Loading -->
+  <section id="loading" class="screen active">
+    <div class="logo small"><span class="l1">CHAMO</span><span class="l2">KART</span></div>
+    <div class="loadbar"><div id="loadbar-fill"></div></div>
+    <p id="load-msg">Warming up the engines…</p>
+  </section>
+
+  <!-- Title -->
+  <section id="title" class="screen">
+    <div class="title-wrap">
+      <div class="logo"><span class="l1">CHAMO</span><span class="l2">KART</span></div>
+      <p class="tagline">¡Arranca, chamo!</p>
+      <button class="btn big pulse" data-action="start">Press Start</button>
+    </div>
+    <p class="footer-note">Keyboard, gamepad or touch · Best with sound on 🔊</p>
+  </section>
+
+  <!-- Main menu -->
+  <section id="menu" class="screen">
+    <div class="panel menu-panel">
+      <div class="logo small"><span class="l1">CHAMO</span><span class="l2">KART</span></div>
+      <div class="menu-list">
+        <button class="btn mode gp" data-action="mode" data-mode="gp"><b>Grand Prix</b><small>Race the Copa Chamo: 5 tracks, win the trophy</small></button>
+        <button class="btn mode vs" data-action="mode" data-mode="vs"><b>Versus Race</b><small>One race, any track, your rules</small></button>
+        <button class="btn mode tt" data-action="mode" data-mode="tt"><b>Time Trial</b><small>Beat your ghost with 3 chiles</small></button>
+        <button class="btn mode online" data-action="online"><b>Online</b><small>Race friends and strangers live</small></button>
+        <div class="row">
+          <button class="btn" data-action="settings">⚙ Settings</button>
+          <button class="btn" data-action="howto">🎮 How to Play</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Character + kart select -->
+  <section id="select" class="screen">
+    <div class="panel select-panel">
+      <h2 class="screen-title">Choose your racer</h2>
+      <div id="char-grid" class="char-grid"></div>
+      <div class="sel-detail">
+        <div>
+          <h3 id="sel-name">Chamo</h3>
+          <p id="sel-tag" class="muted">All-rounder</p>
+        </div>
+        <div id="sel-stats" class="stats"></div>
+      </div>
+      <h3 class="sub-title">Kart</h3>
+      <div id="kart-grid" class="kart-grid"></div>
+      <div id="cc-row" class="cc-row">
+        <span class="muted">Engine class</span>
+        <div id="cc-choices" class="seg"></div>
+      </div>
+      <div class="row end">
+        <button class="btn ghost" data-action="back">Back</button>
+        <button class="btn primary" data-action="select-ok">OK!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Track select -->
+  <section id="tracks" class="screen">
+    <div class="panel wide">
+      <h2 class="screen-title" id="tracks-title">Pick a track</h2>
+      <div id="track-grid" class="track-grid"></div>
+      <div class="row between">
+        <div id="laps-row" class="cc-row">
+          <span class="muted">Laps</span>
+          <div id="laps-choices" class="seg"></div>
+        </div>
+        <div id="items-row" class="cc-row">
+          <span class="muted">Items</span>
+          <div id="items-choices" class="seg"></div>
+        </div>
+      </div>
+      <div class="row end">
+        <button class="btn ghost" data-action="back">Back</button>
+        <button class="btn primary" data-action="race-go">Race!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Online hub -->
+  <section id="online" class="screen">
+    <div class="panel wide">
+      <h2 class="screen-title">Online</h2>
+      <p id="online-status" class="muted">Connecting…</p>
+      <div class="online-grid">
+        <div class="card">
+          <label class="field"><span>Your name</span><input id="name-input" maxlength="14" autocomplete="off" spellcheck="false" /></label>
+          <button class="btn primary big-ish" data-action="quick">⚡ Quick Play</button>
+          <div class="row">
+            <button class="btn" data-action="create-public">Create public room</button>
+            <button class="btn" data-action="create-private">Create private room</button>
+          </div>
+          <div class="row join-row">
+            <input id="code-input" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" />
+            <button class="btn" data-action="join">Join</button>
+          </div>
+          <button class="btn ghost" data-action="change-racer">Change racer</button>
+        </div>
+        <div class="card">
+          <h3>Open rooms</h3>
+          <div id="room-list" class="room-list"><p class="muted">No open rooms yet: create one!</p></div>
+        </div>
+      </div>
+      <div class="row end"><button class="btn ghost" data-action="back">Back</button></div>
+    </div>
+  </section>
+
+  <!-- Lobby -->
+  <section id="lobby" class="screen">
+    <div class="panel wide lobby-panel">
+      <div class="lobby-head">
+        <div>
+          <h2 class="screen-title">Room <span id="lobby-code" class="code">----</span></h2>
+          <p class="muted" id="lobby-sub">Share the code with your friends</p>
+        </div>
+        <button class="btn small" data-action="copy-link">🔗 Copy invite link</button>
+      </div>
+      <div class="lobby-grid">
+        <div class="card">
+          <h3>Racers <span id="lobby-count" class="muted"></span></h3>
+          <div id="lobby-players" class="lobby-players"></div>
+          <div class="voice-bar">
+            <button class="btn small" id="voice-btn" data-action="voice">🎙 Join voice chat</button>
+            <button class="btn small" id="mute-btn" data-action="mute">Mute mic</button>
+          </div>
+          <p class="muted voice-hint" id="voice-hint">Talk with everyone in the room. Headphones recommended!</p>
+          <div class="vols">
+            <label class="vol"><span>🎵 Music</span><input type="range" data-vol="music" min="0" max="1" step="0.05" aria-label="🎵 Music volume" /></label>
+            <label class="vol"><span>🎙 Voice</span><input type="range" data-vol="voice" min="0" max="1" step="0.05" aria-label="🎙 Voice volume" /></label>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Race settings <span id="lobby-host-note" class="muted"></span></h3>
+          <div id="lobby-settings" class="lobby-settings"></div>
+        </div>
+        <div class="card chat-card">
+          <h3>Chat</h3>
+          <div id="chat-log" class="chat-log"></div>
+          <form id="chat-form" class="row"><input id="chat-input" maxlength="120" placeholder="Say something…" autocomplete="off" /><button class="btn small">Send</button></form>
+        </div>
+      </div>
+      <div class="row between">
+        <button class="btn ghost" data-action="leave">Leave room</button>
+        <div class="row">
+          <button class="btn" data-action="change-racer">Change racer</button>
+          <button class="btn" id="lobby-rematch-btn" data-action="rematch">🔁 Rematch</button>
+          <button class="btn" id="ready-btn" data-action="ready">Ready</button>
+          <button class="btn primary" id="start-btn" data-action="start-race">Start race</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section id="settings" class="screen">
+    <div class="panel settings-panel">
+      <h2 class="screen-title">Settings</h2>
+      <label class="field"><span>Music volume</span><input type="range" data-vol="music" min="0" max="1" step="0.05" /></label>
+      <label class="field"><span>Sound effects</span><input type="range" data-vol="sfx" min="0" max="1" step="0.05" /></label>
+      <label class="field"><span>Voice chat volume</span><input type="range" data-vol="voice" min="0" max="1" step="0.05" /></label>
+      <div class="field touch-only"><span>Steering</span><div id="set-steer" class="seg"></div></div>
+      <div class="field"><span>Graphics</span><div id="set-quality" class="seg"></div></div>
+      <label class="field check"><input type="checkbox" id="set-auto" /> <span>Auto-accelerate</span></label>
+      <label class="field check"><input type="checkbox" id="set-touch" /> <span>Show touch controls</span></label>
+      <label class="field check"><input type="checkbox" id="set-fps" /> <span>Show FPS</span></label>
+      <div class="row end"><button class="btn primary" data-action="back">Done</button></div>
+    </div>
+  </section>
+
+  <!-- How to play -->
+  <section id="howto" class="screen">
+    <div class="panel wide">
+      <h2 class="screen-title">How to play</h2>
+      <div class="howto-grid">
+        <div class="card touch-only">
+          <h3>Touch controls</h3>
+          <table class="keys touch-keys">
+            <tr><td><span class="tk stick"></span></td><td>Drag the pad left and right to steer. Your kart speeds up on its own.</td></tr>
+            <tr><td><span class="tk">DRIFT</span></td><td>Hold while turning to hop &amp; drift</td></tr>
+            <tr><td><span class="tk">ITEM</span></td><td>Use your item (hold <span class="tk sm">◀◀</span> to throw it backwards)</td></tr>
+            <tr><td><span class="tk">◀◀</span></td><td>Brake / reverse</td></tr>
+            <tr><td><span class="tk sm">❚❚</span></td><td>Pause</td></tr>
+          </table>
+          <p class="muted">Prefer a steering wheel? Settings → Steering → Tilt phone. Turn your phone sideways for the widest view, and for full screen tap Share → Add to Home Screen.</p>
+        </div>
+        <div class="card no-touch">
+          <h3>Controls</h3>
+          <table class="keys">
+            <tr><td><kbd>↑</kbd><kbd>W</kbd></td><td>Accelerate</td></tr>
+            <tr><td><kbd>↓</kbd><kbd>S</kbd></td><td>Brake / reverse</td></tr>
+            <tr><td><kbd>←</kbd><kbd>→</kbd><kbd>A</kbd><kbd>D</kbd></td><td>Steer</td></tr>
+            <tr><td><kbd>Space</kbd><kbd>Shift</kbd></td><td>Hop &amp; drift</td></tr>
+            <tr><td><kbd>E</kbd><kbd>X</kbd></td><td>Use item (hold <kbd>↓</kbd> to throw backwards)</td></tr>
+            <tr><td><kbd>C</kbd></td><td>Look behind</td></tr>
+            <tr><td><kbd>Enter</kbd><kbd>T</kbd></td><td>Chat (online)</td></tr>
+            <tr><td><kbd>V</kbd></td><td>Join voice / mute mic (online)</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
+          </table>
+          <p class="muted">Gamepad: A accelerate · B brake · RB/RT drift · LB/LT item · X look back</p>
+        </div>
+        <div class="card">
+          <h3>Pro tips</h3>
+          <ul class="tips">
+            <li><b>Drift!</b> Hold drift while turning. Sparks go <span class="c-blue">blue</span> → <span class="c-orange">orange</span> → <span class="c-purple">purple</span>. Let go for a mini-turbo.</li>
+            <li><b>Rocket start:</b> hold accelerate as the <b>2</b> turns into <b>1</b>. Press during the <b>3</b> and you'll stall!</li>
+            <li><b>Tricks:</b> tap drift right after flying off a ramp for a landing boost.</li>
+            <li><b>Coins</b> raise your top speed (max 10). Getting hit loses some.</li>
+            <li>Racers at the back get better items. Never give up!</li>
+          </ul>
+        </div>
+        <div class="card items-card">
+          <h3>Items</h3>
+          <div id="howto-items" class="howto-items"></div>
+        </div>
+      </div>
+      <div class="row end"><button class="btn primary" data-action="back">Got it</button></div>
+    </div>
+  </section>
+
+  <!-- HUD -->
+  <section id="hud" class="hud">
+    <div id="hud-item" class="hud-item"><div id="hud-item-icon"></div><span id="hud-item-count"></span></div>
+    <div class="hud-coins"><span class="coin-ico"></span><span id="hud-coins-n">0</span></div>
+    <div class="hud-topright">
+      <div id="hud-time" class="hud-time">0:00.000</div>
+      <div class="hud-lap"><small>LAP</small> <span id="hud-lap">1/3</span></div>
+      <div id="hud-splits" class="hud-splits"></div>
+    </div>
+    <div id="hud-standings" class="hud-standings"></div>
+    <canvas id="hud-minimap" class="hud-minimap"></canvas>
+    <div class="hud-place"><span id="hud-place">1</span><span id="hud-place-suf">st</span></div>
+    <div id="hud-drift" class="hud-drift"></div>
+    <div id="hud-center"></div>
+    <div id="hud-sub"></div>
+    <div id="hud-wrong">WRONG WAY!</div>
+    <div id="hud-speedlines"></div>
+    <div id="hud-splat"></div>
+    <div id="hud-flash"></div>
+    <button id="pause-btn" class="pause-btn" aria-label="Pause">❚❚</button>
+    <div id="hud-social" class="hud-social">
+      <div id="hud-feed" class="hud-feed"></div>
+      <div class="hud-voice">
+        <button id="hud-mic" class="hud-mic" data-action="hud-mic" aria-label="Voice chat">🎙</button>
+        <button id="hud-chat" class="hud-mic hud-chat" data-action="hud-chat" aria-label="Chat">💬</button>
+        <span id="hud-talkers" class="hud-talkers"></span>
+      </div>
+      <form id="race-chat" class="race-chat"><input id="race-chat-input" maxlength="120" placeholder="Say something… (Enter sends, Esc cancels)" autocomplete="off" /></form>
+      <div id="hud-social-hint" class="hud-social-hint">Enter: chat · V: voice</div>
+    </div>
+    <div id="touch" class="touch">
+      <div id="touch-stick" class="touch-stick"><div id="touch-knob"></div></div>
+      <div class="touch-btns">
+        <button id="touch-item" class="tbtn item">ITEM</button>
+        <button id="touch-brake" class="tbtn brake">◀◀</button>
+        <button id="touch-drift" class="tbtn drift">DRIFT</button>
+      </div>
+    </div>
+    <div id="fps" class="fps"></div>
+  </section>
+
+  <!-- Pause -->
+  <section id="pause" class="screen overlay">
+    <div class="panel small-panel">
+      <h2 class="screen-title" id="pause-title">Paused</h2>
+      <div class="vols">
+        <label class="vol"><span>🎵 Music</span><input type="range" data-vol="music" min="0" max="1" step="0.05" aria-label="🎵 Music volume" /></label>
+        <label class="vol"><span>🔊 Effects</span><input type="range" data-vol="sfx" min="0" max="1" step="0.05" aria-label="🔊 Effects volume" /></label>
+        <label class="vol online-only"><span>🎙 Voice</span><input type="range" data-vol="voice" min="0" max="1" step="0.05" aria-label="🎙 Voice volume" /></label>
+      </div>
+      <div class="pause-btns">
+        <button class="btn primary" data-action="resume">Resume</button>
+        <button class="btn" data-action="restart" id="restart-btn">Restart race</button>
+        <button class="btn" data-action="settings">Settings</button>
+        <button class="btn ghost" data-action="quit">Quit</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section id="results" class="screen overlay">
+    <div class="panel wide results-panel">
+      <h2 class="screen-title" id="results-title">Results</h2>
+      <p id="results-sub" class="muted"></p>
+      <div id="results-table" class="results-table"></div>
+      <div class="row end" id="results-actions"></div>
+    </div>
+  </section>
+
+  <!-- Grand Prix podium -->
+  <section id="podium" class="screen overlay">
+    <div class="panel wide podium-panel">
+      <h2 class="screen-title">Copa Chamo: Final standings</h2>
+      <div id="podium-stage" class="podium-stage"></div>
+      <p id="podium-msg" class="podium-msg"></p>
+      <div id="podium-table" class="results-table"></div>
+      <div class="row end"><button class="btn primary" data-action="menu">Main menu</button></div>
+    </div>
+  </section>
+
+  <div id="toasts" class="toasts"></div>
+
+  <script type="module" src="js/main.js?v=8"></script>
+</body>
+</html>
