@@ -10,8 +10,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Chamo Kart" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="manifest" href="manifest.json" />
   <meta name="robots" content="noindex, nofollow" />
-  <meta name="description" content="Chamo Kart: a kart racing game in your browser. Race CPUs in the Copa Chamo or race your friends online." />
+  <meta name="description" content="Chamo Kart: a kart racing game in your browser. Race CPUs in the Chamo Cup or race your friends online." />
   <title>Chamo Kart</title>
   <!-- Link previews (iMessage, WhatsApp, Telegram, Slack…). URLs must be absolute. -->
   <meta property="og:type" content="website" />
@@ -33,7 +34,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=7" />
+  <link rel="stylesheet" href="css/style.css?v=32" />
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
   </script>
@@ -52,7 +53,7 @@
   <section id="title" class="screen">
     <div class="title-wrap">
       <div class="logo"><span class="l1">CHAMO</span><span class="l2">KART</span></div>
-      <p class="tagline">¡Arranca, chamo!</p>
+      <p class="tagline">Start your engines!</p>
       <button class="btn big pulse" data-action="start">Press Start</button>
     </div>
     <p class="footer-note">Keyboard, gamepad or touch · Best with sound on 🔊</p>
@@ -60,16 +61,21 @@
 
   <!-- Main menu -->
   <section id="menu" class="screen">
+    <button id="players-chip" class="players-chip" data-action="players">👥 <span id="players-count">Players</span></button>
     <div class="panel menu-panel">
       <div class="logo small"><span class="l1">CHAMO</span><span class="l2">KART</span></div>
       <div class="menu-list">
-        <button class="btn mode gp" data-action="mode" data-mode="gp"><b>Grand Prix</b><small>Race the Copa Chamo: 5 tracks, win the trophy</small></button>
+        <button class="btn mode gp" data-action="mode" data-mode="gp"><b>Grand Prix</b><small>Race the Chamo Cup: 5 tracks, win the trophy</small></button>
         <button class="btn mode vs" data-action="mode" data-mode="vs"><b>Versus Race</b><small>One race, any track, your rules</small></button>
-        <button class="btn mode tt" data-action="mode" data-mode="tt"><b>Time Trial</b><small>Beat your ghost with 3 chiles</small></button>
+        <button class="btn mode tt" data-action="mode" data-mode="tt"><b>Time Trial</b><small>Beat your ghost with 3 mushrooms</small></button>
+        <button class="btn mode daily" data-action="daily"><b>Daily Challenge</b><small id="daily-menu-sub">Same track and kart for everyone today</small></button>
         <button class="btn mode online" data-action="online"><b>Online</b><small>Race friends and strangers live</small></button>
         <div class="row">
           <button class="btn" data-action="settings">⚙ Settings</button>
           <button class="btn" data-action="howto">🎮 How to Play</button>
+          <button class="btn" data-action="records">🏆 Best times</button>
+          <button class="btn" data-action="whatsnew">📜 What's new</button>
+          <button class="btn feedback-btn" data-action="feedback">💬 Send feedback</button>
         </div>
       </div>
     </div>
@@ -86,6 +92,7 @@
           <p id="sel-tag" class="muted">All-rounder</p>
         </div>
         <div id="sel-stats" class="stats"></div>
+        <button id="sel-edit" class="btn small" data-action="custom-edit" hidden>✏️ Edit my racer</button>
       </div>
       <h3 class="sub-title">Kart</h3>
       <div id="kart-grid" class="kart-grid"></div>
@@ -96,6 +103,24 @@
       <div class="row end">
         <button class="btn ghost" data-action="back">Back</button>
         <button class="btn primary" data-action="select-ok">OK!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- The Custom racer's editor (the kart spins on the right, like the racer select) -->
+  <section id="custom" class="screen">
+    <div class="panel select-panel custom-panel">
+      <div class="custom-head">
+        <h2 class="screen-title">✏️ Your racer</h2>
+        <div id="custom-tabs" class="seg custom-tabs">
+          <button data-tab="avatar">🙂 Avatar</button><button data-tab="car">🏎️ Car</button><button data-tab="stats">📊 Stats</button>
+        </div>
+      </div>
+      <div id="custom-body" class="custom-body"></div>
+      <div class="row end">
+        <button class="btn ghost" data-action="custom-random">🎲 Random</button>
+        <button class="btn ghost" data-action="back">Cancel</button>
+        <button class="btn primary" data-action="custom-save">Save ✓</button>
       </div>
     </div>
   </section>
@@ -113,6 +138,10 @@
         <div id="items-row" class="cc-row">
           <span class="muted">Items</span>
           <div id="items-choices" class="seg"></div>
+        </div>
+        <div id="ghost-row" class="cc-row">
+          <span class="muted">Ghost</span>
+          <div id="ghost-choices" class="seg"></div>
         </div>
       </div>
       <div class="row end">
@@ -158,7 +187,10 @@
           <h2 class="screen-title">Room <span id="lobby-code" class="code">----</span></h2>
           <p class="muted" id="lobby-sub">Share the code with your friends</p>
         </div>
-        <button class="btn small" data-action="copy-link">🔗 Copy invite link</button>
+        <div class="row invite-row">
+          <button class="btn small whatsapp" data-action="invite-whatsapp">WhatsApp</button>
+          <button class="btn small" data-action="copy-link">🔗 Copy invite link</button>
+        </div>
       </div>
       <div class="lobby-grid">
         <div class="card">
@@ -200,6 +232,18 @@
   <section id="settings" class="screen">
     <div class="panel settings-panel">
       <h2 class="screen-title">Settings</h2>
+      <div class="field player-box">
+        <span>Your player</span>
+        <input id="set-name" class="text-input" maxlength="14" placeholder="Your name" autocomplete="off" />
+        <div class="player-code"><small>Player code</small> <b id="player-code">····-····-····</b></div>
+        <p class="muted player-note">Playing on another phone or computer? Open your link there (or enter the code) to be the same player, with your name and your times. Keep it to yourself: anyone with it can play as you.</p>
+        <div class="row wrap">
+          <button class="btn small" data-action="code-copy">🔗 Copy my link</button>
+          <button class="btn small" data-action="code-wa">💬 Send to myself</button>
+          <button class="btn small" data-action="code-use">⌨️ I have a code</button>
+          <button class="btn small ghost" data-action="code-reset">🔄 New code</button>
+        </div>
+      </div>
       <label class="field"><span>Music volume</span><input type="range" data-vol="music" min="0" max="1" step="0.05" /></label>
       <label class="field"><span>Sound effects</span><input type="range" data-vol="sfx" min="0" max="1" step="0.05" /></label>
       <label class="field"><span>Voice chat volume</span><input type="range" data-vol="voice" min="0" max="1" step="0.05" /></label>
@@ -215,14 +259,14 @@
   <!-- How to play -->
   <section id="howto" class="screen">
     <div class="panel wide">
-      <h2 class="screen-title">How to play</h2>
+      <div class="row between"><h2 class="screen-title">How to play</h2><button class="btn primary" data-action="tutorial">🎓 Interactive tutorial</button></div>
       <div class="howto-grid">
         <div class="card touch-only">
           <h3>Touch controls</h3>
           <table class="keys touch-keys">
             <tr><td><span class="tk stick"></span></td><td>Drag the pad left and right to steer. Your kart speeds up on its own.</td></tr>
             <tr><td><span class="tk">DRIFT</span></td><td>Hold while turning to hop &amp; drift</td></tr>
-            <tr><td><span class="tk">ITEM</span></td><td>Use your item (hold <span class="tk sm">◀◀</span> to throw it backwards)</td></tr>
+            <tr><td><span class="tk">ITEM</span></td><td>Use your item. Hold it to drag a banana or red shell behind you as a shield, let go to use it (hold <span class="tk sm">◀◀</span> to throw it backwards)</td></tr>
             <tr><td><span class="tk">◀◀</span></td><td>Brake / reverse</td></tr>
             <tr><td><span class="tk sm">❚❚</span></td><td>Pause</td></tr>
           </table>
@@ -235,8 +279,9 @@
             <tr><td><kbd>↓</kbd><kbd>S</kbd></td><td>Brake / reverse</td></tr>
             <tr><td><kbd>←</kbd><kbd>→</kbd><kbd>A</kbd><kbd>D</kbd></td><td>Steer</td></tr>
             <tr><td><kbd>Space</kbd><kbd>Shift</kbd></td><td>Hop &amp; drift</td></tr>
-            <tr><td><kbd>E</kbd><kbd>X</kbd></td><td>Use item (hold <kbd>↓</kbd> to throw backwards)</td></tr>
+            <tr><td><kbd>E</kbd><kbd>X</kbd></td><td>Use item. Hold it to drag a banana or red shell behind you as a shield, let go to use it (hold <kbd>↓</kbd> to throw backwards)</td></tr>
             <tr><td><kbd>C</kbd></td><td>Look behind</td></tr>
+            <tr><td><kbd>D</kbd></td><td>agenteintermediario: open / close the CX-9's doors. Bumblebee: transform into a robot and back. (Steer with <kbd>←</kbd><kbd>→</kbd>)</td></tr>
             <tr><td><kbd>Enter</kbd><kbd>T</kbd></td><td>Chat (online)</td></tr>
             <tr><td><kbd>V</kbd></td><td>Join voice / mute mic (online)</td></tr>
             <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
@@ -262,14 +307,186 @@
     </div>
   </section>
 
+  <!-- Best times (global, Time Trial): fastest lap and fastest full race -->
+  <section id="records" class="screen">
+    <div class="panel records-panel">
+      <h2 class="screen-title">Best times</h2>
+      <div id="records-board" class="seg records-board"></div>
+      <div id="records-tracks" class="seg records-tracks"></div>
+      <p id="records-status" class="muted records-status"></p>
+      <div id="records-table" class="results-table records-table"></div>
+      <label class="field records-name"><span>Your name on the boards</span><input id="records-name" class="board-name" maxlength="14" autocomplete="off" spellcheck="false" /></label>
+      <p id="records-note" class="muted records-note"></p>
+      <div class="row end"><button class="btn" id="records-ghost" data-action="race-record-ghost">👻 Race #1's ghost</button><button class="btn primary" data-action="back">Back</button></div>
+    </div>
+  </section>
+
+  <!-- Who's playing: see other players and challenge them -->
+  <section id="players" class="screen">
+    <div class="panel records-panel players-panel">
+      <h2 class="screen-title">Players</h2>
+      <p id="players-status" class="muted records-status"></p>
+      <div id="players-list" class="results-table records-table players-list"></div>
+      <div class="card notify-card">
+        <h3>🔔 Notifications</h3>
+        <p id="notify-text" class="muted notify-text"></p>
+        <button id="notify-btn" class="btn" data-action="notify-toggle"></button>
+      </div>
+      <div class="row end"><button class="btn primary" data-action="back">Back</button></div>
+    </div>
+  </section>
+
+  <!-- First race ever: offer the tutorial -->
+  <section id="tutorial-offer" class="screen overlay">
+    <div class="panel small-panel tut-panel">
+      <h2 class="screen-title">🎓 New here?</h2>
+      <p>Take a 2-minute driving lesson: drifting, mini-turbos, items and ramp tricks. You'll win a lot more races!</p>
+      <div class="row end">
+        <button class="btn ghost" data-action="tut-no">I know how to play</button>
+        <button class="btn primary" data-action="tutorial">🎓 Show me</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tutorial finished -->
+  <section id="tutorial-done" class="screen overlay">
+    <div class="panel small-panel tut-panel">
+      <h2 class="screen-title">🎓 You're ready!</h2>
+      <p>You can drift, boost, use items and land tricks.<span class="no-touch"> One last tip: hold accelerate just as the <b>2</b> turns into <b>1</b> in the countdown for a <b>rocket start</b>.</span></p>
+      <div class="row end">
+        <button class="btn ghost" data-action="menu">Main menu</button>
+        <button class="btn" data-action="tut-practice">Keep practicing</button>
+        <button class="btn primary" data-action="tut-race">🏁 Race now!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Use a player code on this device -->
+  <section id="link" class="screen overlay">
+    <div class="panel small-panel link-panel">
+      <h2 class="screen-title">🔑 Use a player code</h2>
+      <div id="link-enter">
+        <p>Enter the code from your other phone or computer (Settings → Your player).</p>
+        <input id="link-code" class="text-input code-input" maxlength="16" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+        <p id="link-error" class="link-error"></p>
+        <div class="row end">
+          <button class="btn" data-action="link-cancel">Cancel</button>
+          <button class="btn primary" data-action="link-check">Next</button>
+        </div>
+      </div>
+      <div id="link-confirm">
+        <img id="link-portrait" class="challenge-portrait" alt="" />
+        <p id="link-text" class="challenge-text"></p>
+        <div class="row end">
+          <button class="btn" data-action="link-cancel">Cancel</button>
+          <button id="link-yes" class="btn primary" data-action="link-yes">Yes</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Send feedback -->
+  <section id="feedback" class="screen overlay">
+    <div class="panel small-panel feedback-panel">
+      <h2 class="screen-title">💬 Send feedback</h2>
+      <p>Found a bug? Got an idea for a track, racer or item? Tell us!</p>
+      <textarea id="feedback-text" maxlength="1000" rows="5" placeholder="What happened, or what would make the game better?"></textarea>
+      <label class="field check"><input type="checkbox" id="feedback-ctx" checked /> <span>Include what I was doing (screen, track, device)</span></label>
+      <div class="row end">
+        <button class="btn" data-action="back">Cancel</button>
+        <button class="btn primary" id="feedback-send" data-action="feedback-send">Send</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- A challenge from another player -->
+  <section id="challenge" class="screen overlay">
+    <div class="panel small-panel challenge-panel">
+      <h2 class="screen-title">⚔️ Challenge!</h2>
+      <img id="challenge-portrait" class="challenge-portrait" alt="" />
+      <p id="challenge-text" class="challenge-text"></p>
+      <div class="row end">
+        <button class="btn" data-action="challenge-no">Not now</button>
+        <button class="btn primary" data-action="challenge-yes">Let's race!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Daily challenge -->
+  <section id="daily" class="screen">
+    <div class="panel records-panel daily-panel">
+      <h2 class="screen-title">Daily Challenge</h2>
+      <p id="daily-when" class="muted daily-when"></p>
+      <div class="daily-card">
+        <canvas id="daily-thumb"></canvas>
+        <div class="daily-info">
+          <b id="daily-track"></b>
+          <div class="daily-racer">
+            <img id="daily-portrait" alt="" />
+            <span><b id="daily-char"></b><small id="daily-kart"></small></span>
+          </div>
+          <p id="daily-best" class="daily-best"></p>
+        </div>
+      </div>
+      <h3 class="sub-title">Today's board</h3>
+      <p id="daily-status" class="muted records-status"></p>
+      <div id="daily-table" class="results-table records-table"></div>
+      <p id="daily-prev" class="muted records-note"></p>
+      <label class="field records-name"><span>Your name on the boards</span><input id="daily-name" class="board-name" maxlength="14" autocomplete="off" spellcheck="false" /></label>
+      <p class="muted records-note">Everyone gets the same track, racer and kart, with 3 mushrooms and no items. Race as often as you like: your best 3-lap time counts. A new challenge starts at midnight UTC.</p>
+      <div class="row end"><button class="btn" data-action="back">Back</button><button class="btn primary" data-action="daily-go">Race!</button></div>
+    </div>
+  </section>
+
+  <!-- What's new (changelog, shown on load when there's something unseen) -->
+  <section id="whatsnew" class="screen overlay">
+    <div class="panel whatsnew-panel">
+      <h2 class="screen-title">What's new</h2>
+      <div id="whatsnew-list" class="whatsnew-list"></div>
+      <div class="row end"><button class="btn primary" data-action="whatsnew-close">Let's race!</button></div>
+    </div>
+  </section>
+
   <!-- HUD -->
+  <!-- Highlights replay (after a race, before the results) -->
+  <div id="replay-ui" class="replay-ui">
+    <div class="replay-badge"><i></i>REPLAY <span id="replay-count"></span></div>
+    <div id="replay-caption" class="replay-caption"></div>
+    <button class="btn replay-skip" data-action="replay-skip">Skip ▶▶</button>
+  </div>
+
+  <!-- The tutorial's coach (one step at a time) -->
+  <div id="tutorial-ui" class="tutorial-ui">
+    <div class="tut-card">
+      <div class="tut-top"><span id="tut-count" class="tut-count"></span><span id="tut-dots" class="tut-dots"></span></div>
+      <h3 id="tut-title" class="tut-title"></h3>
+      <p id="tut-text" class="tut-text"></p>
+      <div id="tut-bar" class="bar tut-bar" hidden><i></i></div>
+      <div class="tut-foot"><span id="tut-where" class="tut-where"></span><button class="btn small" data-action="tut-skip">Skip ▶</button><button class="btn small ghost" data-action="tut-exit">Exit</button></div>
+    </div>
+  </div>
+
+  <!-- Watching someone else's race live -->
+  <div id="watch-ui" class="watch-ui">
+    <div class="watch-bar">
+      <span class="watch-live"><i></i>LIVE</span>
+      <img id="watch-portrait" class="watch-portrait" alt="" />
+      <span class="watch-who"><b id="watch-name"></b><small id="watch-sub"></small></span>
+      <button id="watch-next" class="btn small" data-action="watch-next" hidden>🔄 Next racer</button>
+      <button class="btn small" data-action="watch-stop">✕ Stop</button>
+    </div>
+    <div id="watch-msg" class="watch-msg"></div>
+  </div>
+
   <section id="hud" class="hud">
+    <div id="hud-watchers" class="hud-watchers"></div>
     <div id="hud-item" class="hud-item"><div id="hud-item-icon"></div><span id="hud-item-count"></span></div>
     <div class="hud-coins"><span class="coin-ico"></span><span id="hud-coins-n">0</span></div>
     <div class="hud-topright">
       <div id="hud-time" class="hud-time">0:00.000</div>
       <div class="hud-lap"><small>LAP</small> <span id="hud-lap">1/3</span></div>
       <div id="hud-splits" class="hud-splits"></div>
+      <div id="hud-records" class="hud-records"></div>
     </div>
     <div id="hud-standings" class="hud-standings"></div>
     <canvas id="hud-minimap" class="hud-minimap"></canvas>
@@ -316,6 +533,7 @@
         <button class="btn primary" data-action="resume">Resume</button>
         <button class="btn" data-action="restart" id="restart-btn">Restart race</button>
         <button class="btn" data-action="settings">Settings</button>
+        <button class="btn" data-action="feedback">💬 Feedback</button>
         <button class="btn ghost" data-action="quit">Quit</button>
       </div>
     </div>
@@ -334,16 +552,30 @@
   <!-- Grand Prix podium -->
   <section id="podium" class="screen overlay">
     <div class="panel wide podium-panel">
-      <h2 class="screen-title">Copa Chamo: Final standings</h2>
+      <h2 class="screen-title">Chamo Cup: Final standings</h2>
       <div id="podium-stage" class="podium-stage"></div>
       <p id="podium-msg" class="podium-msg"></p>
       <div id="podium-table" class="results-table"></div>
-      <div class="row end"><button class="btn primary" data-action="menu">Main menu</button></div>
+      <div class="row end"><button class="btn" data-action="share">📸 Share</button><button class="btn primary" data-action="menu">Main menu</button></div>
+    </div>
+  </section>
+
+  <!-- Share card preview -->
+  <section id="sharecard" class="screen overlay">
+    <div class="panel sharecard-panel">
+      <h2 class="screen-title">Share your result</h2>
+      <img id="share-img" class="share-img" alt="Your result card" />
+      <div class="row end">
+        <button class="btn" data-action="share-close">Close</button>
+        <button class="btn" data-action="share-save">⬇️ Save</button>
+        <button class="btn whatsapp" id="share-wa" data-action="share-wa">WhatsApp</button>
+        <button class="btn primary" id="share-go" data-action="share-go">📲 Share</button>
+      </div>
     </div>
   </section>
 
   <div id="toasts" class="toasts"></div>
 
-  <script type="module" src="js/main.js?v=8"></script>
+  <script type="module" src="js/main.js?v=46"></script>
 </body>
 </html>

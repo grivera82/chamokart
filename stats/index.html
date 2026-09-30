@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#e23b3b" />
+  <title>Chamo Kart Stats</title>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css" />
+  <link rel="stylesheet" href="../css/style.css?v=32" />
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+  </script>
+  <style>
+    /* The game locks the page to one screen; this page scrolls. Only the root scrolls:
+       a scrollable body plus the game's overscroll-behavior: none swallows wheel scrolling. */
+    html, body { height: auto; min-height: 100%; user-select: text; -webkit-user-select: text; touch-action: auto; overscroll-behavior: auto; }
+    html { overflow-x: hidden; overflow-y: auto; }
+    body { overflow: visible; }
+    html { background: #4a0f3a radial-gradient(circle at 50% 0%, #ff6b4a, #b8203a 45%, #4a0f3a 100%) no-repeat fixed; }
+    body { background: transparent; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 40px max(16px, env(safe-area-inset-left)); }
+    .st-wrap { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+    .st-head { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+    .st-head .logo { text-decoration: none; }
+    .st-head .logo.small .l1 { font-size: 40px; }
+    .st-head .logo.small .l2 { font-size: 32px; }
+    .st-title { flex: 1; min-width: 160px; }
+    .st-title h1 { font-family: var(--display); font-weight: 400; font-size: 44px; margin: 0; color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; letter-spacing: 1px; transform: rotate(-2deg); }
+    .st-title p { margin: 2px 0 0; color: #fff; font-weight: 800; opacity: 0.9; }
+    .st-panel { width: 100%; max-height: none; overflow: visible; }
+    .st-panel h2 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 0; letter-spacing: 0.5px; }
+    .st-panel h2 small { font-family: var(--body); font-size: 14px; color: var(--muted); font-weight: 800; letter-spacing: 0; }
+    .st-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+    .st-grid .st-panel { min-width: 0; }
+
+    /* headline numbers */
+    .st-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .st-tile { background: var(--panel); border: 4px solid var(--ink); border-radius: var(--radius); box-shadow: 0 6px 0 rgba(0, 0, 0, 0.18); padding: 12px 16px; }
+    .st-tile b { display: block; font-family: var(--display); font-weight: 400; font-size: 36px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .st-tile span { color: var(--muted); font-weight: 800; font-size: 14px; }
+
+    /* players table */
+    .st-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .st-tools input { flex: 1; min-width: 200px; font-size: 16px; padding: 8px 12px; }
+    .st-table-wrap { overflow-x: auto; margin: 0 calc(-1 * var(--pad)); padding: 0 var(--pad); }
+    .st-table { width: 100%; border-collapse: separate; border-spacing: 0 5px; font-weight: 800; font-size: 14px; }
+    .st-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); padding: 2px 10px; white-space: nowrap; cursor: pointer; user-select: none; }
+    .st-table th.num, .st-table td.num { text-align: right; }
+    .st-table th.sorted::after { content: " ▼"; color: var(--red); }
+    .st-table th.sorted.asc::after { content: " ▲"; }
+    .st-table td { background: #f5f2fb; padding: 6px 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .st-table td:first-child { border-radius: 12px 0 0 12px; }
+    .st-table td:last-child { border-radius: 0 12px 12px 0; }
+    .st-table tr.p-row { cursor: pointer; }
+    .st-table tr.p-row:hover td { background: #fff6cc; }
+    .st-table tr.open td { background: var(--yellow); }
+    .st-who { display: flex; align-items: center; gap: 8px; }
+    .st-who img, .st-av { width: 36px; height: 36px; flex: none; }
+    .st-av { display: inline-grid; place-items: center; border-radius: 50%; color: #fff; font-family: var(--display); border: 2px solid var(--ink); }
+    .st-where { display: flex; align-items: center; gap: 8px; }
+    .fi { width: 1.4em; line-height: 1.05em; border-radius: 3px; box-shadow: 0 0 0 1.5px var(--ink); flex: none; }
+    .st-ip { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+    .st-dim { color: var(--muted); }
+    .st-detail td { background: #fff !important; border: 3px solid var(--yellow); border-top: 0; white-space: normal; }
+    .st-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; padding: 6px 2px; }
+    .st-detail h4 { font-family: var(--display); font-weight: 400; font-size: 17px; margin: 0 0 4px; }
+    .st-kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13px; }
+    .st-kv dt { color: var(--muted); }
+    .st-kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+    .st-detail-grid > .wide { grid-column: 1 / -1; }
+    .st-detail-grid > .wide .st-kv { grid-template-columns: auto auto 1fr; justify-content: start; }
+    .st-detail-grid > .wide .st-kv dd { text-align: left; }
+    .st-empty { color: var(--muted); font-weight: 800; padding: 8px 0; margin: 0; }
+
+    /* horizontal bars: one series, value labelled at the end */
+    .st-bars { display: flex; flex-direction: column; gap: 6px; }
+    .st-bar { display: grid; grid-template-columns: minmax(90px, 42%) 1fr auto; gap: 10px; align-items: center; font-weight: 800; font-size: 14px; }
+    .st-bar .lbl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .st-bar .lbl span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .st-bar .lbl img { width: 28px; height: 28px; flex: none; }
+    .st-bar .track { height: 18px; background: #efe9fb; border-radius: 4px; position: relative; }
+    .st-bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--purple); border-radius: 0 4px 4px 0; min-width: 2px; }
+    .st-bar .val { min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* daily activity columns */
+    .st-days { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; align-items: end; height: 150px; border-bottom: 2px solid #d9d2ea; position: relative; }
+    .st-days .col { height: 100%; display: flex; align-items: flex-end; }
+    .st-days .col i { display: block; width: 100%; background: var(--purple); border-radius: 4px 4px 0 0; min-height: 2px; }
+    .st-days .col.zero i { background: #e2dcef; }
+    .st-days .col:hover i { background: var(--red); }
+    .st-days-axis { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; color: var(--muted); }
+    .st-days-max { position: absolute; top: 0; left: 0; right: 0; border-top: 1px dashed #d9d2ea; font-size: 11px; font-weight: 800; color: var(--muted); padding-left: 2px; pointer-events: none; }
+
+    /* fastest laps */
+    .st-laps-tabs { display: grid; grid-template-columns: repeat(8, 1fr); align-self: stretch; }
+    .st-laps-tabs button { padding: 8px 6px; line-height: 1.15; }
+    .st-panel .results-table { flex: none; overflow: visible; }
+
+    #tip { position: fixed; z-index: 50; pointer-events: none; background: var(--ink); color: #fff; font-weight: 800; font-size: 13px; padding: 6px 10px; border-radius: 10px; border: 2px solid #fff; box-shadow: var(--shadow); opacity: 0; transition: opacity 0.1s; max-width: 260px; }
+    #tip.on { opacity: 1; }
+    .st-error { background: var(--red); color: #fff; }
+    .fb-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+    .fb-tools .seg button { padding: 6px 12px; }
+    .fb-item { border: 3px solid var(--ink); border-radius: 16px; padding: 10px 12px; margin-bottom: 10px; background: #fff; }
+    .fb-item.done { opacity: 0.55; background: transparent; }
+    .fb-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .fb-head img, .fb-head .st-av { border-radius: 50%; }
+    .fb-head .muted { font-size: 13px; }
+    .fb-new { background: var(--red); color: #fff; font-size: 11px; font-weight: 900; padding: 1px 7px; border-radius: 8px; }
+    .fb-text { white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 700; margin: 8px 0 4px; font-size: 15px; }
+    .fb-ctx { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .fb-btns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+    .fb-btns .btn { padding: 5px 10px; font-size: 13px; }
+    #feedback-panel h2 small .fb-new { font-size: 13px; }
+
+    @media (max-width: 600px) {
+      .st-title h1 { font-size: 34px; }
+      .st-tile b { font-size: 28px; }
+      .st-tiles { grid-template-columns: 1fr 1fr; }
+      .st-grid { grid-template-columns: 1fr; }
+      .st-laps-tabs button { font-size: 12px; padding: 6px 2px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="st-wrap">
+    <header class="st-head">
+      <a class="logo small" href="../" title="Play Chamo Kart"><span class="l1">CHAMO</span><span class="l2">KART</span></a>
+      <div class="st-title">
+        <h1>Stats</h1>
+        <p id="updated">Loading…</p>
+      </div>
+      <button class="btn" id="refresh">↻ Refresh</button>
+    </header>
+
+    <section class="st-tiles" id="tiles"></section>
+
+    <section class="panel st-panel" id="feedback-panel">
+      <h2 id="feedback">💬 Feedback <small id="fb-count"></small></h2>
+      <div class="fb-tools">
+        <div id="fb-filter" class="seg"><button data-f="new" class="on">New</button><button data-f="all">All</button></div>
+        <button class="btn small" id="fb-notify" hidden>🔔 Notify me on this device</button>
+      </div>
+      <div id="fb-list"></div>
+    </section>
+
+    <section class="panel st-panel">
+      <h2>Players <small id="players-count"></small></h2>
+      <div class="st-tools">
+        <input id="search" placeholder="Search name, city, country or IP…" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="st-table-wrap"><table class="st-table" id="players"></table></div>
+    </section>
+
+    <div class="st-grid">
+      <section class="panel st-panel">
+        <h2>Daily activity <small>visits, last 30 days</small></h2>
+        <div id="days"></div>
+      </section>
+      <section class="panel st-panel">
+        <h2>Where they play from <small>players per country</small></h2>
+        <div id="countries" class="st-bars"></div>
+      </section>
+      <section class="panel st-panel">
+        <h2>Most raced tracks <small>races, all modes</small></h2>
+        <div id="tracks" class="st-bars"></div>
+      </section>
+      <section class="panel st-panel">
+        <h2>Favorite racers <small>races driven</small></h2>
+        <div id="chars" class="st-bars"></div>
+      </section>
+      <section class="panel st-panel">
+        <h2>Modes <small>races finished</small></h2>
+        <div id="modes" class="st-bars"></div>
+      </section>
+      <section class="panel st-panel">
+        <h2>Devices <small>players</small></h2>
+        <div id="devices" class="st-bars"></div>
+      </section>
+    </div>
+
+    <section class="panel st-panel">
+      <h2>Fastest laps <small>Time Trial, best lap per racer</small></h2>
+      <div id="laps-tabs" class="seg st-laps-tabs"></div>
+      <div id="laps" class="results-table"></div>
+    </section>
+  </div>
+  <div id="tip"></div>
+
+  <script type="module">
+    import { CHARACTERS, KARTS, TRACKS } from "../js/data.js?v=17";
+
+    const $ = (s) => document.querySelector(s);
+    const el = (tag, cls, text) => {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text != null) e.textContent = text;
+      return e;
+    };
+    const MODE_NAMES = { gp: "Grand Prix", vs: "Versus", tt: "Time Trial", daily: "Daily", online: "Online" };
+    const regionName = (() => {
+      try {
+        const d = new Intl.DisplayNames(["en"], { type: "region" });
+        return (cc) => (cc ? d.of(cc) : "Unknown");
+      } catch {
+        return (cc) => cc || "Unknown";
+      }
+    })();
+    const nf = new Intl.NumberFormat("en");
+    const fmtTime = (t) => {
+      if (t == null || !isFinite(t)) return "--";
+      const m = Math.floor(t / 60), s = Math.floor(t % 60), ms = Math.floor((t * 1000) % 1000);
+      return `${m}:${String(s).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+    };
+    const fmtDuration = (sec) => {
+      const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+      return h ? `${h}h ${m}m` : `${m}m`;
+    };
+    const ago = (ts) => {
+      const s = (Date.now() - ts) / 1000;
+      if (s < 60) return "just now";
+      if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+      if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+      if (s < 86400 * 30) return `${Math.floor(s / 86400)} d ago`;
+      return new Date(ts).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" });
+    };
+    const dateTime = (ts) => new Date(ts).toLocaleString("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const sum = (a) => a.reduce((x, y) => x + y, 0);
+    const argmax = (a) => (a?.length && Math.max(...a) > 0 ? a.indexOf(Math.max(...a)) : -1);
+    const totalRaces = (p) => sum(Object.values(p.races));
+
+    // ------------------------------------------------------------ portraits
+    // Rendered with the game's own kart models; initials if WebGL isn't available.
+    let portraits = [];
+    const avatar = (char, size = 36) => {
+      if (portraits[char]) {
+        const img = el("img");
+        img.src = portraits[char];
+        img.alt = "";
+        img.width = img.height = size;
+        return img;
+      }
+      const c = CHARACTERS[char] || CHARACTERS[0];
+      const a = el("span", "st-av", c.name[0]);
+      a.style.background = "#" + c.color.toString(16).padStart(6, "0");
+      return a;
+    };
+    async function loadPortraits() {
+      try {
+        const THREE = await import("three");
+        const { renderPortraits } = await import("../js/view/showroom.js?v=17");
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        portraits = renderPortraits(renderer, 96);
+        renderer.dispose();
+      } catch (err) {
+        console.warn("portraits unavailable", err);
+      }
+    }
+
+    // ------------------------------------------------------------ tooltip
+    const tip = $("#tip");
+    document.addEventListener("pointermove", (e) => {
+      const t = e.target.closest?.("[data-tip]");
+      if (!t) return tip.classList.remove("on");
+      tip.textContent = t.dataset.tip;
+      tip.classList.add("on");
+      const r = tip.getBoundingClientRect();
+      tip.style.left = Math.min(innerWidth - r.width - 8, e.clientX + 14) + "px";
+      tip.style.top = Math.max(8, e.clientY - r.height - 12) + "px";
+    });
+
+    // ------------------------------------------------------------ bars
+    function bars(root, rows, unit) {
+      root.innerHTML = "";
+      rows = rows.filter((r) => r.value > 0);
+      if (!rows.length) return root.append(el("p", "st-empty", "Nothing yet."));
+      const max = Math.max(...rows.map((r) => r.value));
+      const total = sum(rows.map((r) => r.value));
+      for (const r of rows) {
+        const row = el("div", "st-bar");
+        const pct = Math.round((r.value / total) * 100);
+        row.dataset.tip = `${r.label}: ${nf.format(r.value)} ${unit} (${pct}%)`;
+        const lbl = el("div", "lbl");
+        if (r.icon) lbl.append(r.icon);
+        lbl.append(el("span", "", r.label));
+        const track = el("div", "track");
+        const fill = el("div", "fill");
+        fill.style.width = (r.value / max) * 100 + "%";
+        track.append(fill);
+        row.append(lbl, track, el("span", "val", nf.format(r.value)));
+        root.append(row);
+      }
+    }
+
+    const flag = (cc) => {
+      if (!cc) return el("span", "fi fi-xx");
+      const f = el("span", `fi fi-${cc.toLowerCase()}`);
+      f.title = regionName(cc);
+      return f;
+    };
+
+    // ------------------------------------------------------------ render
+    let data = null;
+    let sortKey = "last", sortAsc = false, openPid = null, lapTrack = 0;
+
+    const COLUMNS = [
+      { key: "name", label: "Player", get: (p) => p.name.toLowerCase(), asc: true },
+      { key: "where", label: "Location", get: (p) => [regionName(p.country), p.city].join(" ").toLowerCase(), asc: true },
+      { key: "ip", label: "IP address", get: (p) => p.ip, asc: true },
+      { key: "device", label: "Device", get: (p) => `${p.device} ${p.browser}`, asc: true },
+      { key: "visits", label: "Visits", get: (p) => p.visits, num: true },
+      { key: "races", label: "Races", get: totalRaces, num: true },
+      { key: "wins", label: "Wins", get: (p) => p.wins, num: true },
+      { key: "time", label: "Time raced", get: (p) => p.raceTime, num: true },
+      { key: "last", label: "Last seen", get: (p) => p.last, num: true },
+    ];
+
+    function renderTiles() {
+      const P = data.players;
+      const today = new Date().toISOString().slice(0, 10);
+      const tiles = [
+        [nf.format(P.length), "players"],
+        [nf.format(data.days[today]?.pids.length || 0), "played today"],
+        [nf.format(sum(P.map((p) => p.visits))), "visits"],
+        [nf.format(sum(P.map(totalRaces))), "races finished"],
+        [nf.format(sum(P.map((p) => p.laps))), "laps driven"],
+        [fmtDuration(sum(P.map((p) => p.raceTime))), "time raced"],
+        [nf.format(new Set(P.map((p) => p.country).filter(Boolean)).size), "countries"],
+        [nf.format(data.online.clients), "connected now"],
+      ];
+      const root = $("#tiles");
+      root.innerHTML = "";
+      for (const [v, l] of tiles) {
+        const t = el("div", "st-tile");
+        t.append(el("b", "", v), el("span", "", l));
+        root.append(t);
+      }
+    }
+
+    function detail(p) {
+      const grid = el("div", "st-detail-grid");
+      const block = (title, pairs) => {
+        const d = el("div");
+        d.append(el("h4", "", title));
+        const dl = el("dl", "st-kv");
+        for (const [k, v] of pairs) {
+          const dd = el("dd");
+          if (v instanceof Node) dd.append(v);
+          else dd.textContent = v;
+          dl.append(el("dt", "", k), dd);
+        }
+        d.append(dl);
+        return d;
+      };
+      const favTrack = argmax(p.tracks), favChar = argmax(p.chars), favKart = argmax(p.karts);
+      grid.append(
+        block("Racing", [
+          ...Object.entries(MODE_NAMES).map(([m, n]) => [n, nf.format(p.races[m] || 0)]),
+          ["Wins", nf.format(p.wins)],
+          ["Podiums", nf.format(p.podiums)],
+          ["Laps", nf.format(p.laps)],
+          ["Time raced", fmtDuration(p.raceTime)],
+        ]),
+        block("Trophies & online", [
+          ["Cups played", nf.format(p.cups.played)],
+          ["Cups won", nf.format(p.cups.won)],
+          ["Online races", nf.format(p.online.races)],
+          ["Online wins", nf.format(p.online.wins)],
+          ["Online points", nf.format(p.online.points)],
+        ]),
+        block("Favorites", [
+          ["Track", favTrack >= 0 ? TRACKS[favTrack].name : "--"],
+          ["Racer", favChar >= 0 ? CHARACTERS[favChar].name : CHARACTERS[p.char]?.name ?? "--"],
+          ["Kart", favKart >= 0 ? KARTS[favKart].name : KARTS[p.kart]?.name ?? "--"],
+          ["First seen", dateTime(p.first)],
+          ["Last seen", dateTime(p.last)],
+        ]),
+        block("Time Trial bests (lap · race)", TRACKS.map((t, i) => [t.name, p.bestLap[i] == null ? "--" : `${fmtTime(p.bestLap[i])} · ${fmtTime(p.bestRace[i])}`])),
+        connections(p)
+      );
+      return grid;
+    }
+
+    function connections(p) {
+      const d = el("div", "wide");
+      d.append(el("h4", "", "Recent connections"));
+      const dl = el("dl", "st-kv");
+      for (const e of p.ips) {
+        const where = el("dd", "st-where");
+        where.append(flag(e.country), el("span", "", [e.city, e.region && e.region !== e.city ? e.region : "", regionName(e.country)].filter(Boolean).join(", ")));
+        dl.append(el("dt", "st-ip", e.ip), where, el("dd", "st-dim", ago(e.at)));
+      }
+      if (!p.ips.length) dl.append(el("dt", "", "--"), el("dd"), el("dd"));
+      d.append(dl);
+      return d;
+    }
+
+    function renderPlayers() {
+      const q = $("#search").value.trim().toLowerCase();
+      const col = COLUMNS.find((c) => c.key === sortKey);
+      const list = data.players
+        .filter((p) => !q || [p.name, p.city, p.region, p.country, regionName(p.country), p.ip, ...p.ips.map((e) => e.ip)].join(" ").toLowerCase().includes(q))
+        .sort((a, b) => {
+          const x = col.get(a), y = col.get(b);
+          const d = x < y ? -1 : x > y ? 1 : 0;
+          return sortAsc ? d : -d;
+        });
+      $("#players-count").textContent = q ? `${list.length} of ${data.players.length}` : `${data.players.length} total`;
+      const table = $("#players");
+      table.innerHTML = "";
+      const head = el("tr");
+      for (const c of COLUMNS) {
+        const th = el("th", (c.num ? "num " : "") + (c.key === sortKey ? "sorted" + (sortAsc ? " asc" : "") : ""), c.label);
+        th.addEventListener("click", () => {
+          if (sortKey === c.key) sortAsc = !sortAsc;
+          else (sortKey = c.key), (sortAsc = !!c.asc);
+          renderPlayers();
+        });
+        head.append(th);
+      }
+      const thead = el("thead");
+      thead.append(head);
+      table.append(thead);
+      const body = el("tbody");
+      table.append(body);
+      if (!list.length) {
+        const tr = el("tr");
+        const td = el("td", "st-empty", data.players.length ? "No players match." : "No players yet. Stats start when someone loads the game.");
+        td.colSpan = COLUMNS.length;
+        tr.append(td);
+        body.append(tr);
+        return;
+      }
+      for (const p of list) {
+        const tr = el("tr", "p-row" + (openPid === p.pid ? " open" : ""));
+        const who = el("div", "st-who");
+        who.append(avatar(p.char), el("span", "", p.name));
+        const where = el("div", "st-where");
+        where.append(flag(p.country), el("span", "", [p.city, p.region && p.region !== p.city ? p.region : "", regionName(p.country)].filter(Boolean).join(", ")));
+        const cells = [
+          who,
+          where,
+          el("span", "st-ip", p.ip || "--"),
+          el("span", "", [p.device, p.browser].filter(Boolean).join(" · ") || "--"),
+          nf.format(p.visits),
+          nf.format(totalRaces(p)),
+          nf.format(p.wins),
+          fmtDuration(p.raceTime),
+          ago(p.last),
+        ];
+        cells.forEach((c, i) => {
+          const td = el("td", COLUMNS[i].num ? "num" : "");
+          if (c instanceof Node) td.append(c);
+          else td.textContent = c;
+          tr.append(td);
+        });
+        tr.addEventListener("click", () => {
+          openPid = openPid === p.pid ? null : p.pid;
+          renderPlayers();
+        });
+        body.append(tr);
+        if (openPid === p.pid) {
+          const dr = el("tr", "st-detail");
+          const td = el("td");
+          td.colSpan = COLUMNS.length;
+          td.append(detail(p));
+          dr.append(td);
+          body.append(dr);
+        }
+      }
+    }
+
+    function renderDays() {
+      const root = $("#days");
+      root.innerHTML = "";
+      const days = [];
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+        days.push({ d, ...(data.days[d] || { visits: 0, races: 0, pids: [] }) });
+      }
+      const max = Math.max(1, ...days.map((d) => d.visits));
+      const chart = el("div", "st-days");
+      const cap = el("div", "st-days-max", nf.format(max));
+      chart.append(cap);
+      const label = (d) => new Date(d + "T12:00:00Z").toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" });
+      for (const d of days) {
+        const col = el("div", "col" + (d.visits ? "" : " zero"));
+        col.dataset.tip = `${label(d.d)}: ${d.visits} visits · ${d.pids.length} players · ${d.races} races`;
+        const bar = el("i");
+        bar.style.height = (d.visits / max) * 100 + "%";
+        col.append(bar);
+        chart.append(col);
+      }
+      const axis = el("div", "st-days-axis");
+      axis.append(el("span", "", label(days[0].d)), el("span", "", "Today"));
+      root.append(chart, axis);
+    }
+
+    function renderCharts() {
+      const P = data.players;
+      const byCountry = new Map();
+      for (const p of P) byCountry.set(p.country, (byCountry.get(p.country) || 0) + 1);
+      bars(
+        $("#countries"),
+        [...byCountry].sort((a, b) => b[1] - a[1]).map(([cc, n]) => ({ label: regionName(cc), value: n, icon: flag(cc) })),
+        "players"
+      );
+      bars(
+        $("#tracks"),
+        TRACKS.map((t, i) => ({ label: t.name, value: sum(P.map((p) => p.tracks[i] || 0)) })).sort((a, b) => b.value - a.value),
+        "races"
+      );
+      bars(
+        $("#chars"),
+        CHARACTERS.map((c, i) => ({ label: c.name, value: sum(P.map((p) => p.chars[i] || 0)), icon: avatar(i, 28) })).sort((a, b) => b.value - a.value),
+        "races"
+      );
+      bars($("#modes"), Object.entries(MODE_NAMES).map(([m, n]) => ({ label: n, value: sum(P.map((p) => p.races[m] || 0)) })).sort((a, b) => b.value - a.value), "races");
+      const byDevice = new Map();
+      for (const p of P) {
+        const k = [p.device, p.browser].filter(Boolean).join(" · ") || "Unknown";
+        byDevice.set(k, (byDevice.get(k) || 0) + 1);
+      }
+      bars($("#devices"), [...byDevice].sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ label: k, value: n })), "players");
+    }
+
+    function renderLaps() {
+      const tabs = $("#laps-tabs");
+      if (!tabs.children.length) {
+        TRACKS.forEach((t, i) => {
+          const b = el("button", "", t.name);
+          b.addEventListener("click", () => {
+            lapTrack = i;
+            renderLaps();
+          });
+          tabs.append(b);
+        });
+      }
+      [...tabs.children].forEach((b, i) => b.classList.toggle("on", i === lapTrack));
+      const root = $("#laps");
+      root.innerHTML = "";
+      const list = data.records[lapTrack] || [];
+      if (!list.length) return root.append(el("p", "st-empty", "No laps yet on this track."));
+      const who = new Map(data.players.map((p) => [p.pid, p]));
+      list.forEach((e, i) => {
+        const row = el("div", `rr p${i + 1}`);
+        row.style.animationDelay = i * 0.04 + "s";
+        const p = who.get(e.pid);
+        const place = p ? [p.city, regionName(p.country)].filter(Boolean).join(", ") : "";
+        row.append(el("span", "pos", String(i + 1)), avatar(e.char, 40), el("span", "nm", e.name), el("span", "time", `${KARTS[e.kart]?.name ?? ""}${place ? " · " + place : ""}`), el("span", "pts", fmtTime(e.time)));
+        root.append(row);
+      });
+    }
+
+    // ------------------------------------------------------------ feedback
+    let fbFilter = "new";
+    const WHERE = { menu: "Main menu", title: "Title screen", race: "In a race", select: "Racer select", tracks: "Track select", records: "Best times", settings: "Settings", online: "Online", lobby: "Online lobby", daily: "Daily Challenge", results: "Results", howto: "How to Play" };
+    const post = (body) => fetch("data", { method: "POST", headers: { "content-type": "application/json", "x-chamo-stats": "1" }, body: JSON.stringify(body) }).then((r) => r.json());
+
+    function renderFeedback() {
+      const list = data.feedback || [];
+      const fresh = list.filter((f) => !f.done).length;
+      const count = $("#fb-count");
+      count.innerHTML = "";
+      if (fresh) count.append(el("span", "fb-new", `${fresh} new`), " ");
+      if (list.length) count.append(`${list.length} total`);
+      const root = $("#fb-list");
+      root.innerHTML = "";
+      const shown = fbFilter === "new" ? list.filter((f) => !f.done) : list;
+      if (!shown.length) root.append(el("p", "muted", list.length ? "All caught up! Nothing new." : "No feedback yet. Players send it with 💬 Send feedback in the game's menu or pause screen."));
+      const byPid = new Map(data.players.map((p) => [p.pid, p]));
+      for (const f of shown) {
+        const p = byPid.get(f.pid);
+        const item = el("div", "fb-item" + (f.done ? " done" : ""));
+        const head = el("div", "fb-head");
+        head.append(avatar(f.char, 30), el("b", "", f.name));
+        if (p && p.name !== f.name) head.append(el("span", "muted", `(now ${p.name})`));
+        head.append(el("span", "muted", `· ${ago(f.at)}`));
+        if (!f.done) head.append(el("span", "fb-new", "NEW"));
+        head.title = dateTime(f.at) + (p ? ` · ${totalRaces(p)} races · playing since ${ago(p.first)}` : "");
+        const c = f.ctx;
+        const ctx = c ? [WHERE[c.where] || c.where, MODE_NAMES[c.mode] || c.mode, c.track, c.device, c.browser, c.version && `v${c.version}`].filter(Boolean).join(" · ") : "";
+        const btns = el("div", "fb-btns");
+        const done = el("button", "btn", f.done ? "↩ Mark as new" : "✓ Done");
+        done.addEventListener("click", async () => {
+          if ((await post({ action: "fb-done", id: f.id, done: !f.done })).ok) {
+            f.done = !f.done;
+            renderFeedback();
+          }
+        });
+        const del = el("button", "btn ghost", "🗑 Delete");
+        del.addEventListener("click", async () => {
+          if (!confirm("Delete this feedback for good?")) return;
+          if ((await post({ action: "fb-delete", id: f.id })).ok) {
+            data.feedback = data.feedback.filter((x) => x !== f);
+            renderFeedback();
+          }
+        });
+        btns.append(done, del);
+        item.append(head, el("p", "fb-text", f.text));
+        if (ctx) item.append(el("div", "fb-ctx", ctx));
+        item.append(btns);
+        root.append(item);
+      }
+      setupNotify();
+    }
+
+    // Push notifications for new feedback on this device (uses the game's service worker)
+    async function setupNotify() {
+      const btn = $("#fb-notify");
+      if (!("serviceWorker" in navigator) || !("PushManager" in window) || !data.pushKey) return;
+      try {
+        const reg = await navigator.serviceWorker.register("../sw.js?v=1");
+        const sub = await reg.pushManager.getSubscription();
+        const on = !!sub && (data.adminEndpoints || []).includes(sub.endpoint);
+        btn.hidden = false;
+        btn.textContent = on ? "🔕 Stop notifying this device" : "🔔 Notify me on this device";
+        btn.onclick = async () => {
+          btn.disabled = true;
+          try {
+            if (on) {
+              await post({ action: "admin-unsub", endpoint: sub.endpoint });
+              data.adminEndpoints = data.adminEndpoints.filter((e) => e !== sub.endpoint);
+            } else {
+              if ((await Notification.requestPermission()) !== "granted") return alert("Notifications are blocked for this site. Allow them in your browser settings.");
+              await navigator.serviceWorker.ready;
+              let s = sub;
+              if (!s) {
+                const raw = atob(data.pushKey.replace(/-/g, "+").replace(/_/g, "/"));
+                s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, (ch) => ch.charCodeAt(0)) });
+              }
+              if ((await post({ action: "admin-sub", sub: s.toJSON() })).ok) (data.adminEndpoints ||= []).push(s.endpoint);
+              else alert("Couldn't turn on notifications right now.");
+            }
+          } catch {
+            alert("Notifications don't work in this browser. On iPhone, add the page to your Home Screen first.");
+          } finally {
+            btn.disabled = false;
+            setupNotify();
+          }
+        };
+      } catch {}
+    }
+
+    for (const b of document.querySelectorAll("#fb-filter button"))
+      b.addEventListener("click", () => {
+        fbFilter = b.dataset.f;
+        for (const x of document.querySelectorAll("#fb-filter button")) x.classList.toggle("on", x === b);
+        renderFeedback();
+      });
+
+    function render() {
+      renderFeedback();
+      renderTiles();
+      renderPlayers();
+      renderDays();
+      renderCharts();
+      renderLaps();
+      $("#updated").textContent = `Updated ${new Date(data.now).toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" })}`;
+    }
+
+    async function load() {
+      $("#refresh").disabled = true;
+      try {
+        const r = await fetch("data", { cache: "no-store" });
+        if (!r.ok) throw new Error(r.status);
+        data = await r.json();
+        render();
+      } catch (err) {
+        $("#updated").textContent = "Can't load the stats right now (" + err.message + ").";
+      } finally {
+        $("#refresh").disabled = false;
+      }
+    }
+
+    $("#refresh").addEventListener("click", load);
+    $("#search").addEventListener("input", () => data && renderPlayers());
+    await Promise.all([loadPortraits(), load()]);
+    if (data) render();
+    if (location.hash === "#feedback") $("#feedback-panel").scrollIntoView({ behavior: "smooth" });
+  </script>
+</body>
+</html>

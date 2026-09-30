@@ -1,3 +1,12 @@
 node_modules/
 .DS_Store
 *.log
+# Server state (written to the working dir when STATE_DIRECTORY isn't set)
+records.json
+daily.json
+stats.json
+push.json
+vapid.json
+accounts.json
+feedback.json
+ghosts/

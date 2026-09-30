@@ -1,10 +1,10 @@
 // Renders a RaceSim: karts, items, particles, camera direction.
 import * as THREE from "three";
-import { buildWorld } from "./world.js?v=3";
-import { buildKart, buildBanana, buildCoco, buildItemBox, buildCoin, WHEEL_POS, mat } from "./models.js?v=3";
-import { Particles } from "./particles.js?v=3";
-import { shadowTexture, labelTexture } from "./textures.js?v=3";
-import { COUNTDOWN } from "../sim/race.js?v=3";
+import { buildWorld } from "./world.js?v=19";
+import { buildKart, buildBanana, buildCoco, buildItemBox, buildCoin, WHEEL_POS, mat, poseTransformer, TRANSFORM_TIME, buildBlueShell, buildBomb, buildFireball, buildBoomerang, buildBulletBill, buildPiranha, buildBoo } from "./models.js?v=20";
+import { Particles } from "./particles.js?v=8";
+import { shadowTexture, labelTexture } from "./textures.js?v=8";
+import { COUNTDOWN } from "../sim/race.js?v=19";
 
 const TAU = Math.PI * 2;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -15,7 +15,57 @@ function angLerp(a, b, t) {
   return a + d * t;
 }
 const DRIFT_COLORS = [new THREE.Color(0xfff2b0), new THREE.Color(0x4aa8ff), new THREE.Color(0xff8a1a), new THREE.Color(0xd060ff)];
-const DUST = { meadow: 0x8a6a45, desert: 0xe0b27a, snow: 0xffffff, beach: 0xf2d9a2, neon: 0xb080ff };
+const DUST = { meadow: 0x8a6a45, desert: 0xe0b27a, snow: 0xffffff, beach: 0xf2d9a2, neon: 0xb080ff, mars: 0xc8643a, miami: 0x8a8a92, zoo: 0x8a6a45 };
+
+// Comic speech bubbles: "Mashamiiiiii!" when the CX-9's doors move, "Meowww!" from Dorito.
+const bubbleTexs = new Map();
+function bubbleTexture(text = "Mashamiiiiii!", color = "#e23b3b") {
+  if (bubbleTexs.has(text)) return bubbleTexs.get(text);
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 192;
+  const g = c.getContext("2d");
+  g.lineJoin = "round";
+  g.beginPath();
+  g.roundRect(12, 12, 488, 128, 56);
+  g.moveTo(226, 138);
+  g.lineTo(256, 182);
+  g.lineTo(290, 138);
+  g.fillStyle = "#fff";
+  g.strokeStyle = "#16161e";
+  g.lineWidth = 10;
+  g.stroke();
+  g.fill();
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  let size = 72;
+  do g.font = `italic 900 ${size--}px "Arial Black", Arial, sans-serif`;
+  while (g.measureText(text).width > 450);
+  g.fillStyle = color;
+  g.fillText(text, 256, 78);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  bubbleTexs.set(text, tex);
+  return tex;
+}
+const OBJECT_MODELS = {
+  banana: buildBanana,
+  green: () => buildCoco(false),
+  red: () => buildCoco(true),
+  blue: buildBlueShell,
+  bomb: buildBomb,
+  fire: buildFireball,
+  boomerang: buildBoomerang,
+};
+const TRAIL_SPARKS = { red: [1, 0.3, 0.2], blue: [0.3, 0.6, 1], fire: [1, 0.55, 0.1] };
+const BUBBLE_TIME = 1.8;
+const MEOW_TIME = 1.6; // Dorito looking back at the speed booster
+// 0 → 1 → 0 over a timer counting down from `total`: ease in fast, hold, ease out
+const lookEnvelope = (left, total) => {
+  const a = Math.min(1, (total - left) / 0.22), b = Math.min(1, left / 0.35);
+  const e = Math.min(a, b);
+  return e * e * (3 - 2 * e);
+};
 
 // Continue a rotation until it lands on a whole turn, then stop.
 function settle(angle, active, rate, dt) {
@@ -29,7 +79,7 @@ function settle(angle, active, rate, dt) {
 class KartView {
   constructor(kart, scene, opts) {
     this.kart = kart;
-    this.root = buildKart(kart.char, kart.kartType);
+    this.root = buildKart(kart.char, kart.kartType, kart.look);
     this.ud = this.root.userData;
     scene.add(this.root);
     this.shadow = new THREE.Mesh(
@@ -47,6 +97,9 @@ class KartView {
     this.scale = 1;
     this.squash = 1;
     this.emitAcc = 0;
+    this.doorT = 0;
+    this.own = !!opts.own;
+    this.chompT = 0;
     // Star aura
     this.aura = new THREE.Mesh(
       new THREE.SphereGeometry(1.9, 20, 14),
@@ -68,6 +121,25 @@ class KartView {
     this.drone.position.y = 3.9;
     this.drone.visible = false;
     this.root.add(this.drone);
+    if (this.ud.doors) {
+      this.bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: bubbleTexture(), transparent: true, depthWrite: false }));
+      this.bubble.position.y = 3.5;
+      this.bubble.visible = false;
+      this.bubble.renderOrder = 5;
+      this.root.add(this.bubble);
+      this.bubbleT = 0;
+      this.lastDoors = kart.special;
+    }
+    // Dorito meows over his shoulder when he hits a speed booster
+    if (this.ud.driver?.userData.cat) {
+      this.cat = true;
+      this.meowT = 0;
+      this.meowBubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: bubbleTexture("Meowww!", "#f07a1a"), transparent: true, depthWrite: false }));
+      this.meowBubble.position.y = 3.4;
+      this.meowBubble.visible = false;
+      this.meowBubble.renderOrder = 5;
+      this.root.add(this.meowBubble);
+    }
     if (opts.nameTag) {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(kart.name, opts.nameColor || "#fff"), depthWrite: false, transparent: true }));
       sp.scale.set(4, 1, 1);
@@ -102,6 +174,44 @@ class KartView {
     ud.steeringWheel.rotation.z = k.steerVis * 1.2;
     ud.driver.rotation.z = k.steerVis * 0.12;
     ud.driver.userData.head.rotation.y = -k.steerVis * 0.35;
+    if (this.cat) {
+      this.meowT = Math.max(0, this.meowT - dt);
+      const e = this.meowT > 0 ? lookEnvelope(this.meowT, MEOW_TIME) : 0;
+      ud.driver.userData.head.rotation.y = -k.steerVis * 0.35 * (1 - e) + e * 2.4; // over his left shoulder
+      this.meowBubble.visible = this.meowT > 0;
+      if (this.meowBubble.visible) {
+        const age = MEOW_TIME - this.meowT;
+        const s = age < 0.18 ? Math.max(0.05, Math.sin((age / 0.18) * Math.PI * 0.6) / Math.sin(Math.PI * 0.6)) : 1;
+        this.meowBubble.scale.set(3 * s, 1.125 * s, 1);
+        this.meowBubble.material.opacity = Math.min(1, this.meowT / 0.3);
+      }
+    }
+    // Opening doors (Mazda CX-9)
+    if (ud.doors) {
+      this.doorT = Math.max(0, Math.min(1, this.doorT + (k.special ? dt : -dt) * 2.2));
+      const t = this.doorT;
+      const e = t * t * (3 - 2 * t);
+      for (const d of ud.doors) d.pivot.rotation.y = -d.side * d.max * e;
+      if (k.special !== this.lastDoors) {
+        this.lastDoors = k.special;
+        this.bubbleT = BUBBLE_TIME;
+      }
+      this.bubbleT = Math.max(0, this.bubbleT - dt);
+      this.bubble.visible = this.bubbleT > 0;
+      if (this.bubble.visible) {
+        // Pop in with a little overshoot, fade out at the end.
+        const age = BUBBLE_TIME - this.bubbleT;
+        const s = age < 0.18 ? Math.max(0.05, Math.sin((age / 0.18) * Math.PI * 0.6) / Math.sin(Math.PI * 0.6)) : 1;
+        this.bubble.scale.set(3.4 * s, 1.275 * s, 1);
+        this.bubble.material.opacity = Math.min(1, this.bubbleT / 0.3);
+      }
+    }
+    // Transforming (Bumblebee): about a second from car to robot and back
+    if (ud.transform) {
+      this.xformT = Math.max(0, Math.min(1, (this.xformT || 0) + ((k.special ? dt : -dt) / TRANSFORM_TIME)));
+      poseTransformer(ud, this.xformT);
+    }
+    ud.tick?.(dt, time, Math.abs(k.fwdSpeed)); // the Custom racer's propeller, cape and flag
     // Boost flames
     const boosting = k.boostT > 0;
     for (const f of ud.exhausts) {
@@ -109,8 +219,30 @@ class KartView {
       if (boosting) {
         const s = 0.8 + Math.random() * 0.5;
         f.scale.set(s, s * (k.boostPower > 1.3 ? 1.5 : 1.1), s);
-        f.material.color.setHex(k.boostPower > 1.3 ? 0xff7a1a : 0x6ac8ff);
+        f.material.color.setHex(k.boostPower > 1.3 ? 0xff7a1a : ud.boostColor ?? 0x6ac8ff);
       }
+    }
+    // Bullet Bill, Piranha Plant and Boo, built the first time they're needed
+    if (k.bulletT > 0 && !this.bullet) this.root.add((this.bullet = buildBulletBill()));
+    if (this.bullet) this.bullet.visible = k.bulletT > 0;
+    if (k.piranhaT > 0 && !this.piranha) {
+      this.piranha = buildPiranha();
+      this.piranha.position.set(0, 0.55, 1.75 * (ud.showroomScale ? 1.3 : 1));
+      this.root.add(this.piranha);
+    }
+    if (this.piranha) {
+      this.piranha.visible = k.piranhaT > 0 && k.bulletT <= 0;
+      this.chompT = Math.max(0, this.chompT - dt);
+      const c = this.chompT > 0 ? Math.sin((1 - this.chompT / 0.35) * Math.PI) : 0;
+      this.piranha.userData.jaw.rotation.x = -(0.25 + 0.2 * Math.sin(time * 6)) * (1 - c) - c * 0.9;
+      this.piranha.userData.head.position.z = 0.05 + c * 0.8;
+      this.piranha.userData.head.rotation.y = Math.sin(time * 2.3) * 0.3 * (1 - c);
+    }
+    if (k.booT > 0 && !this.boo) this.root.add((this.boo = buildBoo()));
+    if (this.boo) {
+      this.boo.visible = k.booT > 0 && (this.own || Math.floor(time * 8) % 5 === 0);
+      this.boo.position.set(Math.sin(time * 1.7) * 0.6, 3.1 + Math.sin(time * 3) * 0.2, 0);
+      this.boo.rotation.y = Math.PI + Math.sin(time * 1.3) * 0.5; // shyly facing the camera
     }
     // Star aura
     this.aura.visible = k.starT > 0;
@@ -125,7 +257,9 @@ class KartView {
     if (carried) this.propeller.rotation.y += dt * 30;
     let visible = !(falling && k.respawnT < 1.4);
     if (k.invulnT > 0 && k.starT <= 0 && k.local && !carried) visible = visible && Math.floor(time * 16) % 2 === 0;
-    ud.body.visible = visible;
+    // A Boo makes its kart see-through: flickering for its driver, almost gone for everyone else
+    if (k.booT > 0) visible = visible && (this.own ? Math.floor(time * 12) % 3 !== 0 : Math.floor(time * 8) % 5 === 0);
+    ud.body.visible = visible && k.bulletT <= 0;
     // Shadow
     const gy = k.q && k.q.ground ? k.q.height : k.y - 50;
     const alt = Math.max(0, k.y - gy);
@@ -139,7 +273,7 @@ class KartView {
 
   wheelWorld(i, out) {
     const k = this.kart;
-    const [lx, lz] = WHEEL_POS[i];
+    const [lx, lz] = (this.ud.wheelPos || WHEEL_POS)[i];
     const c = Math.cos(k.yaw + this.driftOff), s = Math.sin(k.yaw + this.driftOff);
     out.x = k.x + lx * c + lz * s;
     out.z = k.z - lx * s + lz * c;
@@ -195,7 +329,7 @@ export class RaceView {
 
   addKart(k) {
     const own = k.id === this.focusId;
-    const v = new KartView(k, this.scene, { nameTag: this.opts.nameTags && !own && !k.bot, nameColor: "#ffe066" });
+    const v = new KartView(k, this.scene, { nameTag: this.opts.nameTags && !own && !k.bot, nameColor: "#ffe066", own });
     this.kartViews.set(k.id, v);
   }
 
@@ -224,7 +358,24 @@ export class RaceView {
     for (const { kart: k, e } of events) {
       const v = this.kartViews.get(k.id);
       if (!v) continue;
+      if (e === "pad" && v.cat) v.meowT = MEOW_TIME;
+      const near = k.id === this.focusId;
       switch (e) {
+        case "chomp":
+          v.chompT = 0.35;
+          break;
+        case "bullet":
+        case "bulletEnd":
+          this.smoke.burst(k.x, k.y + 1, k.z, 30, 6, e === "bullet" ? 0x444444 : 0xffffff, 1.5, 0.8, { grow: 2 });
+          if (near) this.shake = Math.max(this.shake, 0.4);
+          break;
+        case "boo":
+        case "stolen":
+          this.smoke.burst(k.x, k.y + 1.5, k.z, 20, 3, 0xeeeeff, 1.2, 0.8, { grow: 1.5, lift: 1 });
+          break;
+        case "blasted":
+          this.sparks.burst(k.x, k.y + 1, k.z, 40, 14, 0x9ad0ff, 0.6, 0.8, { gravity: 8 });
+          break;
         case "wall":
           this.sparks.burst(k.x, k.y + 0.5, k.z, 14, 10, 0xffe0a0, 0.25, 0.35, { gravity: 20 });
           if (k.id === this.focusId) this.shake = Math.max(this.shake, 0.25);
@@ -278,6 +429,26 @@ export class RaceView {
         case "poof":
           this.sparks.burst(f.x, f.y, f.z, 24, 10, 0xfff080, 0.5, 0.5);
           this.smoke.burst(f.x, f.y, f.z, 12, 4, 0xdddddd, 1.2, 0.8, { grow: 1.5 });
+          break;
+        case "boom":
+        case "bigBoom": {
+          const big = f.type === "bigBoom";
+          this.sparks.burst(f.x, f.y + 1, f.z, big ? 90 : 60, big ? 20 : 15, big ? 0x9ad0ff : 0xffa030, 0.8, 0.7, { gravity: 6, lift: 4 });
+          this.smoke.burst(f.x, f.y + 1, f.z, big ? 40 : 28, big ? 8 : 6, big ? 0xc8dcff : 0x555555, 2.5, 1.2, { grow: 2.5, lift: 3 });
+          const fk = this.focus;
+          if (fk) {
+            const d = Math.hypot(f.x - fk.x, f.z - fk.z);
+            if (d < 30) this.shake = Math.max(this.shake, (1 - d / 30) * (big ? 1.2 : 0.9));
+          }
+          break;
+        }
+        case "horn":
+          // A ring blasting outwards
+          for (let i = 0; i < 64; i++) {
+            const a = (i / 64) * TAU;
+            this.sparks.emit(f.x, f.y + 1, f.z, Math.sin(a) * 28, 1, Math.cos(a) * 28, 1, 0.85, 0.3, 0.6, 0.4);
+          }
+          this.smoke.burst(f.x, f.y + 1, f.z, 16, 10, 0xffffff, 1.5, 0.4, { grow: 2 });
           break;
       }
     }
@@ -350,19 +521,37 @@ export class RaceView {
       if (c.active) m.rotation.y = time * 3 + i * 0.4;
     });
     const seen = new Set();
-    for (const o of items.objects) {
+    for (const o of this.replayObjects || items.objects) { // a replay shows its own recorded items
       seen.add(o.id);
       let m = this.objViews.get(o.id);
       if (!m) {
-        m = o.type === "banana" ? buildBanana() : buildCoco(o.type === "red");
+        m = (OBJECT_MODELS[o.type] || buildBanana)();
         m.traverse((c) => (c.castShadow = true));
         this.scene.add(m);
         this.objViews.set(o.id, m);
       }
       m.position.set(o.x, o.y - (o.type === "banana" ? 0.3 : 0), o.z);
-      if (o.type !== "banana") m.rotation.y += dt * 12;
-      else m.rotation.y = (o.age * 0.2 + o.x) % TAU;
-      if (o.type === "red" && Math.random() < 0.5) this.sparks.emit(o.x, o.y, o.z, 0, 0.5, 0, 1, 0.3, 0.2, 0.35, 0.3);
+      if (o.type === "banana") {
+        if (o.trail) m.rotation.y = this.sim.kartById(o.owner)?.yaw ?? 0; // held behind a kart: follow its heading
+        else m.rotation.y = (o.age * 0.2 + o.x) % TAU;
+      } else if (o.type === "bomb") {
+        // Waddles along facing where it's going, and swells up as the fuse runs out
+        if (o.vx || o.vz) m.rotation.y = Math.atan2(o.vx, o.vz);
+        const pulse = o.life != null && o.life < 1.2 ? 1 + Math.max(0, Math.sin(o.age * 30)) * 0.18 : 1;
+        m.scale.setScalar(pulse);
+      } else if (o.type === "blue") {
+        m.rotation.y += dt * 9;
+        const flap = Math.sin(time * 25) * 0.4;
+        m.userData.wingL.rotation.z = -flap;
+        m.userData.wingR.rotation.z = flap;
+      } else if (o.type === "fire") {
+        m.position.y += Math.abs(Math.sin(o.age * 12)) * 0.7; // bouncing along
+        m.rotation.y += dt * 10;
+      } else if (o.type === "boomerang") {
+        m.rotation.y += dt * 22;
+      } else m.rotation.y += dt * 12;
+      const trail = TRAIL_SPARKS[o.type];
+      if (trail && Math.random() < 0.5) this.sparks.emit(o.x, m.position.y, o.z, 0, 0.5, 0, trail[0], trail[1], trail[2], o.type === "blue" ? 0.6 : 0.35, 0.3);
     }
     for (const [id, m] of this.objViews) {
       if (!seen.has(id)) {

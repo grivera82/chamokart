@@ -32,6 +32,7 @@ export class Track {
     this.def = def;
     this.boundary = def.boundary;
     this.shoulder = def.shoulder;
+    this.gravity = def.gravity ?? 1; // multiplier on GRAVITY for airborne karts (Mars is floaty)
     this.build();
   }
 

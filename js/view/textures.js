@@ -63,7 +63,7 @@ export function roadTexture(theme) {
       g.fillRect(250, 0, 6, 256);
       return tex(c);
     }
-    const base = { meadow: "#5b5d66", desert: "#7a6a5c", snow: "#6c7280", beach: "#6f6a66" }[theme] || "#5b5d66";
+    const base = { meadow: "#5b5d66", desert: "#7a6a5c", snow: "#6c7280", beach: "#6f6a66", mars: "#5e4640", miami: "#3b3e46", zoo: "#615f5b" }[theme] || "#5b5d66";
     g.fillStyle = base;
     g.fillRect(0, 0, 256, 256);
     noise(g, 256, 256, 5000, 7, 0.18, 2);
@@ -97,6 +97,9 @@ export function curbTexture(theme) {
       snow: ["#2f6fe8", "#f7f7f7"],
       beach: ["#16b3b0", "#fff7df"],
       neon: ["#ff2bd6", "#20e7ff"],
+      mars: ["#39d353", "#f2ece4"],
+      miami: ["#ff4fa3", "#f4f4f4"],
+      zoo: ["#f2a81d", "#2f8a3a"],
     }[theme] || ["#e8322f", "#f7f7f7"];
     g.fillStyle = a;
     g.fillRect(0, 0, 64, 64);
@@ -117,6 +120,7 @@ export function groundTexture(theme) {
       snow: ["#ffffff", [[240, 245, 255], [220, 230, 245], [250, 250, 255]]],
       beach: ["#ffffff", [[245, 222, 170], [235, 210, 155], [250, 232, 190]]],
       neon: ["#ffffff", [[30, 20, 60], [40, 30, 80], [20, 10, 40]]],
+      mars: ["#ffffff", [[200, 90, 50], [180, 75, 40], [215, 110, 65]]],
     }[theme] || ["#fff", [[90, 160, 70]]];
     g.fillStyle = "#fff";
     g.fillRect(0, 0, 256, 256);
@@ -128,7 +132,7 @@ export function groundTexture(theme) {
       const s = 1 + r() * 3;
       g.fillRect(r() * 256, r() * 256, s, s);
     }
-    if (theme === "meadow") {
+    if (theme === "meadow" || theme === "zoo") {
       for (let i = 0; i < 1400; i++) {
         const v = 170 + Math.floor(r() * 60);
         g.strokeStyle = `rgba(${v - 40},${v},${v - 60},0.7)`;
@@ -270,6 +274,46 @@ export function wallTexture(theme) {
         g.fillRect(x + 2, 4, 28, 56);
       }
       noise(g, 256, 64, 800, 9, 0.2, 2);
+    } else if (theme === "zoo") {
+      // Wooden zoo fence: planks with a green rail on top
+      g.fillStyle = "#6b4526";
+      g.fillRect(0, 0, 256, 64);
+      for (let x = 0; x < 256; x += 16) {
+        g.fillStyle = x % 32 ? "#a0703f" : "#946638";
+        g.fillRect(x + 1, 8, 14, 56);
+      }
+      g.fillStyle = "#2f8a3a";
+      g.fillRect(0, 0, 256, 9);
+      g.fillStyle = "rgba(0,0,0,0.25)";
+      g.fillRect(0, 30, 256, 3);
+      noise(g, 256, 64, 700, 29, 0.14, 2);
+    } else if (theme === "miami") {
+      // Concrete barrier with a teal and pink stripe
+      g.fillStyle = "#aeb4bb";
+      g.fillRect(0, 0, 256, 64);
+      g.fillStyle = "#1fd1c1";
+      g.fillRect(0, 10, 256, 8);
+      g.fillStyle = "#ff4fa3";
+      g.fillRect(0, 21, 256, 4);
+      g.fillStyle = "rgba(0,0,0,0.25)";
+      for (let x = 0; x < 256; x += 64) g.fillRect(x, 0, 2, 64);
+      g.fillRect(0, 56, 256, 8);
+      noise(g, 256, 64, 700, 17, 0.14, 2);
+    } else if (theme === "mars") {
+      // Colony barrier: riveted metal panels with a glowing alien-green strip
+      g.fillStyle = "#8d949e";
+      g.fillRect(0, 0, 256, 64);
+      for (let x = 0; x < 256; x += 64) {
+        g.fillStyle = "#a3aab4";
+        g.fillRect(x + 3, 6, 58, 40);
+        g.fillStyle = "#5c626b";
+        for (const [dx, dy] of [[8, 11], [56, 11], [8, 41], [56, 41]]) g.fillRect(x + dx - 2, dy - 2, 4, 4);
+      }
+      g.fillStyle = "#39d353";
+      g.fillRect(0, 50, 256, 7);
+      g.fillStyle = "rgba(0,0,0,0.3)";
+      g.fillRect(0, 57, 256, 7);
+      noise(g, 256, 64, 600, 13, 0.12, 2);
     } else if (theme === "snow") {
       g.fillStyle = "#f4f8ff";
       g.fillRect(0, 0, 256, 64);
@@ -369,6 +413,285 @@ export function waterTexture() {
       g.moveTo(x, y);
       g.quadraticCurveTo(x + l / 2, y - 3, x + l, y);
       g.stroke();
+    }
+    return tex(c);
+  });
+}
+
+// Spider-Man suit: web grid on red, blue side panels and legs. Wrapped around a
+// capsule, u = 0 faces forward and v runs bottom to top.
+export function spiderSuitTexture() {
+  return cached("spiderSuit", () => {
+    const c = canvas(256, 128);
+    const g = c.getContext("2d");
+    g.fillStyle = "#d0202a";
+    g.fillRect(0, 0, 256, 128);
+    g.strokeStyle = "rgba(20,10,10,0.85)";
+    g.lineWidth = 1.5;
+    for (let x = 0; x <= 256; x += 16) {
+      g.beginPath();
+      g.moveTo(x, 0);
+      g.lineTo(x, 128);
+      g.stroke();
+    }
+    for (let y = 8; y < 128; y += 16) {
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(256, y);
+      g.stroke();
+    }
+    g.fillStyle = "#1e4fd8";
+    for (const u of [0.25, 0.75]) g.fillRect(u * 256 - 22, 0, 44, 128); // sides
+    g.fillRect(0, 128 - 34, 256, 34); // hips and legs
+    return tex(c, false);
+  });
+}
+
+// Spider-Man mask: on a sphere whose pole faces forward, the grid lines become the web
+// radiating from the middle of the face.
+export function spiderMaskTexture() {
+  return cached("spiderMask", () => {
+    const c = canvas(256, 128);
+    const g = c.getContext("2d");
+    g.fillStyle = "#d0202a";
+    g.fillRect(0, 0, 256, 128);
+    g.strokeStyle = "rgba(20,10,10,0.9)";
+    g.lineWidth = 2;
+    for (let x = 0; x < 256; x += 16) {
+      g.beginPath();
+      g.moveTo(x, 0);
+      g.lineTo(x, 128);
+      g.stroke();
+    }
+    for (let y = 12; y < 128; y += 14) {
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(256, y);
+      g.stroke();
+    }
+    return tex(c, false);
+  });
+}
+
+// A spider web radiating from the middle, in black on red (the Spider-Mobile's hood).
+export function spiderWebTexture() {
+  return cached("spiderWeb", () => {
+    const c = canvas(256, 256);
+    const g = c.getContext("2d");
+    g.fillStyle = "#d0202a";
+    g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = "#140a0a";
+    g.lineWidth = 3;
+    const spokes = 14;
+    const pt = (i, r) => {
+      const a = (i / spokes) * Math.PI * 2;
+      return [128 + Math.cos(a) * r, 128 + Math.sin(a) * r];
+    };
+    for (let i = 0; i < spokes; i++) {
+      const [x, y] = pt(i, 200);
+      g.beginPath();
+      g.moveTo(128, 128);
+      g.lineTo(x, y);
+      g.stroke();
+    }
+    for (const r of [22, 48, 78, 112, 150, 192]) {
+      g.beginPath();
+      for (let i = 0; i <= spokes; i++) {
+        const [x, y] = pt(i, r);
+        if (i === 0) g.moveTo(x, y);
+        else {
+          // Each strand sags toward the middle between spokes.
+          const [mx, my] = pt(i - 0.5, r * 0.86);
+          g.quadraticCurveTo(mx, my, x, y);
+        }
+      }
+      g.stroke();
+    }
+    return tex(c, false);
+  });
+}
+
+// A neon sign: glowing text on a transparent background (Miami hotel signs).
+export function neonTexture(text, color) {
+  return cached("neon" + text + color, () => {
+    const c = canvas(512, 128);
+    const g = c.getContext("2d");
+    g.font = "bold italic 78px 'Arial Black', Impact, sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.shadowColor = color;
+    for (const blur of [28, 14, 6]) {
+      g.shadowBlur = blur;
+      g.fillStyle = color;
+      g.fillText(text, 256, 66);
+    }
+    g.shadowBlur = 0;
+    g.fillStyle = "rgba(255,255,255,0.85)";
+    g.fillText(text, 256, 66);
+    return tex(c, false);
+  });
+}
+
+// Night-time tower facade: a grid of windows, some lit. Used as an emissive map.
+export function towerTexture(seed) {
+  return cached("tower" + seed, () => {
+    const c = canvas(128, 256);
+    const g = c.getContext("2d");
+    g.fillStyle = "#000";
+    g.fillRect(0, 0, 128, 256);
+    const r = rng(seed);
+    const lit = ["#ffe6a8", "#fff4d6", "#9fe8ff", "#ffd28a", "#ffffff"];
+    for (let y = 4; y < 256; y += 8)
+      for (let x = 4; x < 128; x += 16) {
+        if (r() < 0.42) {
+          g.fillStyle = lit[Math.floor(r() * lit.length)];
+          g.globalAlpha = 0.55 + r() * 0.45;
+          g.fillRect(x, y, 11, 5);
+        }
+      }
+    g.globalAlpha = 1;
+    return tex(c, false);
+  });
+}
+
+// Zebra coat: wavy black stripes on white (runs up and down a box's sides).
+export function zebraTexture() {
+  return cached("zebra", () => {
+    const c = canvas(128, 128);
+    const g = c.getContext("2d");
+    g.fillStyle = "#f6f4ee";
+    g.fillRect(0, 0, 128, 128);
+    g.fillStyle = "#16161a";
+    for (let x = 4; x < 128; x += 16) {
+      g.beginPath();
+      g.moveTo(x, 0);
+      for (let y = 0; y <= 128; y += 8) g.lineTo(x + Math.sin(y / 18) * 4, y);
+      for (let y = 128; y >= 0; y -= 8) g.lineTo(x + 7 + Math.sin(y / 18) * 4, y);
+      g.fill();
+    }
+    return tex(c);
+  });
+}
+
+// Giraffe coat: brown patches separated by pale lines.
+export function giraffeTexture() {
+  return cached("giraffe", () => {
+    const c = canvas(128, 128);
+    const g = c.getContext("2d");
+    g.fillStyle = "#f3dfa6";
+    g.fillRect(0, 0, 128, 128);
+    const r = rng(41);
+    g.fillStyle = "#b8662a";
+    for (let y = 0; y < 128; y += 26)
+      for (let x = (y / 26) % 2 ? 13 : 0; x < 140; x += 26) {
+        g.beginPath();
+        const sides = 6;
+        for (let k = 0; k < sides; k++) {
+          const a = (k / sides) * Math.PI * 2, rad = 9 + r() * 3;
+          const px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad;
+          k ? g.lineTo(px, py) : g.moveTo(px, py);
+        }
+        g.fill();
+      }
+    return tex(c);
+  });
+}
+
+// Wooden zoo sign with carved-look cream lettering.
+export function signTexture(text) {
+  return cached("sign" + text, () => {
+    const c = canvas(512, 160);
+    const g = c.getContext("2d");
+    g.fillStyle = "#7a4a26";
+    g.fillRect(0, 0, 512, 160);
+    g.fillStyle = "#8f5a30";
+    for (let y = 0; y < 160; y += 32) g.fillRect(0, y + 2, 512, 26);
+    noise(g, 512, 160, 1500, 7, 0.15, 2);
+    g.strokeStyle = "#4a2a12";
+    g.lineWidth = 10;
+    g.strokeRect(5, 5, 502, 150);
+    g.font = "bold 84px 'Arial Black', Impact, sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillStyle = "#3a2210";
+    g.fillText(text, 258, 86);
+    g.fillStyle = "#fff4d6";
+    g.fillText(text, 256, 82);
+    return tex(c, false);
+  });
+}
+
+// Daytime city tower facade: concrete bands and blue-glass windows.
+export function dayTowerTexture(seed) {
+  return cached("dayTower" + seed, () => {
+    const c = canvas(128, 256);
+    const g = c.getContext("2d");
+    const r = rng(seed);
+    g.fillStyle = ["#d9d4c9", "#c9d2dc", "#e6dccb"][seed % 3];
+    g.fillRect(0, 0, 128, 256);
+    for (let y = 4; y < 256; y += 10)
+      for (let x = 4; x < 128; x += 16) {
+        const v = 110 + Math.floor(r() * 60);
+        g.fillStyle = `rgb(${v - 50},${v},${v + 60})`;
+        g.fillRect(x, y, 11, 6);
+      }
+    return tex(c, false);
+  });
+}
+
+
+// Dorito's orange tabby fur. "head" wraps a sphere (u 0.25 is the face, the top row is the
+// crown): the classic "M" of stripes on the forehead, cheek stripes and bands round the back.
+// "body" wraps the torso and arms with wavy bands.
+export function tabbyTexture(part) {
+  return cached("tabby" + part, () => {
+    const w = 512, h = 256;
+    const c = canvas(w, h);
+    const g = c.getContext("2d");
+    g.fillStyle = "#e8913a";
+    g.fillRect(0, 0, w, h);
+    const r = rng(part === "head" ? 21 : 34);
+    // Soft lighter and darker mottling
+    for (let i = 0; i < 260; i++) {
+      g.fillStyle = r() < 0.5 ? "rgba(250,190,110,0.25)" : "rgba(190,100,30,0.18)";
+      g.beginPath();
+      g.ellipse(r() * w, r() * h, 6 + r() * 14, 3 + r() * 6, r() * 3, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.strokeStyle = "rgba(186, 96, 32, 0.75)";
+    g.lineCap = "round";
+    const band = (y, amp, width, from = 0, to = w) => {
+      g.lineWidth = width;
+      g.beginPath();
+      for (let x = from; x <= to; x += 8) {
+        const yy = y + Math.sin(x * 0.045 + y) * amp;
+        x === from ? g.moveTo(x, yy) : g.lineTo(x, yy);
+      }
+      g.stroke();
+    };
+    if (part === "head") {
+      const fx = w * 0.25;
+      // The "M": stripes fanning up from between the eyes over the crown
+      for (let i = -3; i <= 3; i++) {
+        g.lineWidth = i === 0 ? 9 : 7;
+        g.beginPath();
+        g.moveTo(fx + i * 9, h * 0.42);
+        g.quadraticCurveTo(fx + i * 16, h * 0.25, fx + i * 26, h * 0.04);
+        g.stroke();
+      }
+      // Cheek stripes running back from the eyes
+      for (const s of [-1, 1])
+        for (const dy of [0, 16]) {
+          g.lineWidth = 6;
+          g.beginPath();
+          g.moveTo(fx + s * 58, h * 0.5 + dy);
+          g.quadraticCurveTo(fx + s * 85, h * 0.47 + dy, fx + s * 110, h * 0.55 + dy);
+          g.stroke();
+        }
+      // Bands round the back of the head
+      for (let y = 24; y < h * 0.6; y += 32) band(y, 5, 6, w * 0.5, w * 0.95);
+    } else {
+      for (let y = 12; y < h; y += 34) band(y, 7, 7);
     }
     return tex(c);
   });

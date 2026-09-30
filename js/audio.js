@@ -120,6 +120,23 @@ export class GameAudio {
     }
   }
 
+  // Spoken line via the browser's text-to-speech, in an English voice when there is one.
+  say(text, { pitch = 1, rate = 1 } = {}) {
+    const tts = window.speechSynthesis;
+    if (!tts || !window.SpeechSynthesisUtterance || this.sfxVol <= 0) return;
+    tts.cancel(); // mashing the key restarts the line instead of queueing it
+    const u = new SpeechSynthesisUtterance(text);
+    const voices = tts.getVoices().filter((v) => v.lang.toLowerCase().startsWith("en"));
+    const male = /david|daniel|alex|fred|tom|guy|mark|james|aaron|male/i;
+    const voice = voices.find((v) => male.test(v.name) && /us/i.test(v.lang)) || voices.find((v) => male.test(v.name)) || voices.find((v) => /us/i.test(v.lang)) || voices[0];
+    if (voice) u.voice = voice;
+    u.lang = voice?.lang || "en-US";
+    u.pitch = pitch;
+    u.rate = rate;
+    u.volume = Math.min(1, this.sfxVol * 1.2);
+    tts.speak(u);
+  }
+
   // Lower the music while someone on voice chat is talking.
   duck(on) {
     if (this.ducked === !!on) return;
@@ -179,6 +196,40 @@ export class GameAudio {
     s.stop(t + dur + 0.05);
   }
 
+  // A cat's "meowww": a buzzy voice sliding up then down, through a filter that closes from
+  // "ee" to "ow" (the vowel change is what makes it sound like a meow).
+  meow(t, v) {
+    const c = this.ctx;
+    const dur = 0.95;
+    const o = c.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(560, t);
+    o.frequency.linearRampToValueAtTime(760, t + 0.18);
+    o.frequency.linearRampToValueAtTime(700, t + 0.45);
+    o.frequency.exponentialRampToValueAtTime(390, t + dur);
+    const lfo = c.createOscillator();
+    const lg = c.createGain();
+    lfo.frequency.value = 7;
+    lg.gain.value = 14;
+    lfo.connect(lg).connect(o.frequency);
+    const f = c.createBiquadFilter();
+    f.type = "lowpass";
+    f.Q.value = 7;
+    f.frequency.setValueAtTime(900, t);
+    f.frequency.linearRampToValueAtTime(2400, t + 0.16);
+    f.frequency.exponentialRampToValueAtTime(700, t + dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.22 * v, t + 0.05);
+    g.gain.setValueAtTime(0.22 * v, t + dur - 0.3);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    o.connect(f).connect(g).connect(this.sfxBus);
+    o.start(t);
+    lfo.start(t);
+    o.stop(t + dur + 0.05);
+    lfo.stop(t + dur + 0.05);
+  }
+
   // ------------------------------------------------------------ sfx
   play(name, vol = 1) {
     if (!this.ctx) return;
@@ -192,6 +243,28 @@ export class GameAudio {
         this.tone(t, 1046, 0.6, { type: "square", gain: 0.22 * v });
         this.tone(t, 1318, 0.6, { type: "square", gain: 0.12 * v });
         break;
+      case "doorOpen":
+        this.tone(t, 900, 0.03, { type: "square", gain: 0.08 * v, filter: 2500 });
+        this.noiseHit(t + 0.02, 0.12, { gain: 0.18 * v, type: "bandpass", freq: 1400, q: 1.2, sweep: 0.5 });
+        break;
+      case "doorClose":
+        this.noiseHit(t, 0.18, { gain: 0.5 * v, type: "lowpass", freq: 320, q: 0.7 });
+        this.tone(t, 90, 0.12, { type: "sine", gain: 0.3 * v, slide: 0.5 });
+        break;
+      case "transform":
+      case "transformBack": {
+        // Ratcheting clicks over a whirring sweep, then a heavy clank as it locks
+        const up = name === "transform";
+        for (let i = 0; i < 9; i++) {
+          const f = up ? 1800 + i * 260 : 3900 - i * 260;
+          this.noiseHit(t + i * 0.075, 0.035, { gain: 0.22 * v, type: "bandpass", freq: f, q: 4 });
+          this.tone(t + i * 0.075, (up ? 180 + i * 45 : 540 - i * 45), 0.05, { type: "square", gain: 0.06 * v, filter: 1800 });
+        }
+        this.tone(t, up ? 110 : 330, 0.7, { type: "sawtooth", gain: 0.1 * v, slide: up ? 3 : 0.33, filter: 1400 });
+        this.noiseHit(t + 0.72, 0.25, { gain: 0.5 * v, type: "lowpass", freq: 380, q: 0.8 });
+        this.tone(t + 0.72, 70, 0.2, { type: "sine", gain: 0.35 * v, slide: 0.6 });
+        break;
+      }
       case "hop":
         this.tone(t, 300, 0.08, { type: "square", gain: 0.1 * v, slide: 2, filter: 2000 });
         break;
@@ -235,6 +308,9 @@ export class GameAudio {
       case "bump":
         this.tone(t, 140, 0.1, { type: "sine", gain: 0.3 * v, slide: 0.6 });
         break;
+      case "meow":
+        this.meow(t, v);
+        break;
       case "coin":
         this.tone(t, mtof(88), 0.06, { type: "square", gain: 0.1 * v });
         this.tone(t + 0.06, mtof(100), 0.2, { type: "square", gain: 0.1 * v });
@@ -249,6 +325,41 @@ export class GameAudio {
       case "splat":
         this.tone(t, 200, 0.35, { type: "sine", gain: 0.4 * v, slide: 0.3 });
         this.noiseHit(t, 0.3, { gain: 0.3 * v, type: "lowpass", freq: 600 });
+        break;
+      case "boom":
+      case "bigBoom": {
+        const big = name === "bigBoom";
+        this.noiseHit(t, big ? 1.4 : 1.0, { gain: 0.7 * v, type: "lowpass", freq: big ? 1400 : 1000, sweep: 0.08 });
+        this.tone(t, big ? 110 : 90, big ? 0.9 : 0.6, { type: "sine", gain: 0.5 * v, slide: 0.25 });
+        break;
+      }
+      case "horn":
+        [0, 4, 7].forEach((n) => this.tone(t, mtof(58 + n), 0.55, { type: "sawtooth", gain: 0.09 * v, filter: 2400 }));
+        this.noiseHit(t, 0.5, { gain: 0.35 * v, type: "bandpass", freq: 600, q: 0.6, sweep: 4 });
+        break;
+      case "bullet":
+        this.noiseHit(t, 0.35, { gain: 0.6 * v, type: "lowpass", freq: 900, sweep: 0.2 });
+        this.tone(t, 70, 0.3, { type: "sine", gain: 0.5 * v, slide: 0.5 });
+        this.tone(t + 0.1, 200, 1.2, { type: "sawtooth", gain: 0.07 * v, slide: 2.2, filter: 1200 });
+        break;
+      case "blueShell":
+        // A rising siren wail
+        for (let i = 0; i < 3; i++) this.tone(t + i * 0.3, 700, 0.28, { type: "square", gain: 0.07 * v, slide: 1.8, filter: 3000 });
+        break;
+      case "fireball":
+        this.noiseHit(t, 0.18, { gain: 0.25 * v, type: "bandpass", freq: 900, q: 1.5, sweep: 2.5 });
+        break;
+      case "chomp":
+        this.noiseHit(t, 0.08, { gain: 0.4 * v, type: "lowpass", freq: 700 });
+        this.tone(t, 260, 0.06, { type: "square", gain: 0.12 * v, slide: 0.5, filter: 1200 });
+        this.noiseHit(t + 0.12, 0.08, { gain: 0.4 * v, type: "lowpass", freq: 700 });
+        break;
+      case "boo":
+        this.tone(t, 520, 0.9, { type: "sine", gain: 0.14 * v, slide: 0.55, vibrato: 0.04 });
+        this.tone(t + 0.1, 780, 0.8, { type: "sine", gain: 0.08 * v, slide: 0.55, vibrato: 0.05 });
+        break;
+      case "stolen":
+        [7, 4, 0].forEach((n, i) => this.tone(t + i * 0.12, mtof(72 + n), 0.12, { type: "square", gain: 0.1 * v }));
         break;
       case "lap":
         [0, 4, 7].forEach((n, i) => this.tone(t + i * 0.1, mtof(79 + n), 0.12, { type: "square", gain: 0.12 * v }));

@@ -1,9 +1,9 @@
 // Race simulation: karts, items, rules, standings. Rendering-agnostic.
-import { TRACKS, AI_SKILL } from "../data.js?v=3";
-import { Track } from "./track.js?v=3";
-import { Kart } from "./kart.js?v=3";
-import { AIDriver } from "./ai.js?v=3";
-import { ItemSystem } from "./items.js?v=3";
+import { TRACKS, AI_SKILL } from "../data.js?v=17";
+import { Track } from "./track.js?v=4";
+import { Kart } from "./kart.js?v=18";
+import { AIDriver } from "./ai.js?v=6";
+import { ItemSystem } from "./items.js?v=19";
 
 export const STEP = 1 / 120;
 export const COUNTDOWN = 3.2; // seconds of 3-2-1 before GO
@@ -204,19 +204,20 @@ export class RaceSim {
         const r = a.radius + b.radius;
         const d2 = dx * dx + dz * dz;
         if (d2 >= r * r || Math.abs(a.y - b.y) > 2) continue;
+        if (a.booT > 0 || b.booT > 0) continue; // a Boo goes right through
         const d = Math.sqrt(d2) || 0.01;
         const nx = dx / d, nz = dz / d;
         const overlap = r - d;
-        // Star / size effects (victim decides, so only for local victims)
-        const aBig = a.starT > 0 || (a.shrinkT <= 0 && b.shrinkT > 0);
-        const bBig = b.starT > 0 || (b.shrinkT <= 0 && a.shrinkT > 0);
-        if (a.starT > 0 && b.starT <= 0 && b.local) b.hit("tumble");
-        else if (b.starT > 0 && a.starT <= 0 && a.local) a.hit("tumble");
+        // Star, Bullet Bill and size effects (victim decides, so only for local victims)
+        const aBig = a.armored || (a.shrinkT <= 0 && b.shrinkT > 0);
+        const bBig = b.armored || (b.shrinkT <= 0 && a.shrinkT > 0);
+        if (a.armored && !b.armored && b.local) b.hit("tumble");
+        else if (b.armored && !a.armored && a.local) a.hit("tumble");
         else if (aBig && b.shrinkT > 0 && b.local) b.hit("squish");
         else if (bBig && a.shrinkT > 0 && a.local) a.hit("squish");
 
-        const wa = a.stats.weight * a.scale * (a.starT > 0 ? 3 : 1);
-        const wb = b.stats.weight * b.scale * (b.starT > 0 ? 3 : 1);
+        const wa = a.stats.weight * a.scale * (a.armored ? 3 : 1);
+        const wb = b.stats.weight * b.scale * (b.armored ? 3 : 1);
         const fa = wb / (wa + wb), fb = wa / (wa + wb);
         if (a.local) {
           a.x -= nx * overlap * fa;

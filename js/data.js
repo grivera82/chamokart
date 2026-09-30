@@ -1,28 +1,30 @@
 // Static game data: characters, karts, items, speed classes and tracks.
+import { cleanStats } from "./look.js?v=3";
 
 export const CHARACTERS = [
   { name: "Chamo", color: 0xe23b3b, accent: 0xffffff, skin: 0xe2a36f, style: "cap", tag: "All-rounder",
     stats: { speed: 3, accel: 3, weight: 3, handling: 3 } },
-  { name: "agenteintermediario", color: 0xf7f7f5, accent: 0x1a1a1a, skin: 0xd99a6c, style: "balmain", tag: "Quick off the line",
+  { name: "agenteintermediario", color: 0xf7f7f5, accent: 0x1a1a1a, skin: 0xd99a6c, style: "balmain", car: "cx9", tag: "Quick off the line",
     stats: { speed: 3, accel: 4, weight: 2, handling: 3 } },
-  { name: "Paco", color: 0x2fae5a, accent: 0xf4d35e, skin: 0xc98b5c, style: "sombrero", tag: "Steady and sturdy",
+  { name: "Spider-Man", color: 0xd0202a, accent: 0x1e4fd8, skin: 0xd0202a, style: "spidey", car: "spider", tag: "Your friendly neighborhood racer",
     stats: { speed: 3, accel: 2, weight: 4, handling: 3 } },
-  { name: "Nena", color: 0xffc233, accent: 0x7b4dff, skin: 0xf0c09a, style: "pigtails", tag: "Nimble",
+  { name: "Lucas", color: 0xf07a22, accent: 0xf4ecd6, skin: 0x5aa83c, style: "trex", car: "pickup", tag: "Tiny arms, big truck",
     stats: { speed: 2, accel: 4, weight: 2, handling: 4 } },
-  { name: "El Toro", color: 0x8a4b2a, accent: 0xf2e8d5, skin: 0x6b3a22, style: "bull", tag: "Heavyweight",
+  { name: "Bumblebee", color: 0xffc814, accent: 0x16161a, skin: 0xffc814, style: "robot", car: "transformer", tag: "Robot in disguise (press D)",
     stats: { speed: 5, accel: 1, weight: 5, handling: 1 } },
-  { name: "Pollito", color: 0xffe14d, accent: 0xff7a1a, skin: 0xffe14d, style: "chick", tag: "Featherweight",
+  { name: "Chicky", color: 0xffe14d, accent: 0xff7a1a, skin: 0xffe14d, style: "chick", tag: "Featherweight",
     stats: { speed: 1, accel: 5, weight: 1, handling: 5 } },
-  { name: "Luchador", color: 0x2f5bd9, accent: 0xffd23f, skin: 0xc98b5c, style: "mask", tag: "Top speed brawler",
+  { name: "Dorito", color: 0xf28c1e, accent: 0xd42a1f, skin: 0xe8913a, style: "tabby", tag: "Nine lives, zero brakes",
     stats: { speed: 4, accel: 2, weight: 4, handling: 2 } },
-  { name: "Calavera", color: 0x8e44ad, accent: 0x38e0c8, skin: 0xf5f1e6, style: "skull", tag: "Fast and tricky",
+  // Built by the player (js/look.js). A CPU in this slot is Skully, the default look.
+  { name: "Custom", botName: "Skully", custom: true, color: 0x8e44ad, accent: 0x38e0c8, skin: 0xf5f1e6, style: "custom", tag: "Your own creation: tap ✏️ Edit",
     stats: { speed: 4, accel: 3, weight: 3, handling: 2 } },
 ];
 
 export const KARTS = [
-  { name: "Clásico", tag: "Balanced standard kart", mods: { speed: 0, accel: 0, weight: 0, handling: 0 }, offroad: 0.52 },
-  { name: "Bala", tag: "Built for top speed", mods: { speed: 1, accel: -1, weight: 1, handling: -1 }, offroad: 0.48 },
-  { name: "Burro", tag: "Grippy off-road buggy", mods: { speed: -1, accel: 1, weight: 0, handling: 1 }, offroad: 0.68 },
+  { name: "Classic", tag: "Balanced standard kart", mods: { speed: 0, accel: 0, weight: 0, handling: 0 }, offroad: 0.52 },
+  { name: "Bullet", tag: "Built for top speed", mods: { speed: 1, accel: -1, weight: 1, handling: -1 }, offroad: 0.48 },
+  { name: "Buggy", tag: "Grippy off-road buggy", mods: { speed: -1, accel: 1, weight: 0, handling: 1 }, offroad: 0.68 },
 ];
 
 export const CC = { 50: 27, 100: 32, 150: 37, 200: 43 };
@@ -31,42 +33,68 @@ export const POINTS = [15, 12, 10, 8, 6, 4, 2, 1];
 
 export const ITEMS = {
   banana: { name: "Banana" },
-  green: { name: "Green Coco" },
-  red: { name: "Red Coco" },
-  chili: { name: "Chile" },
-  chili3: { name: "Triple Chile" },
-  star: { name: "Estrella" },
-  bolt: { name: "Rayo" },
-  splat: { name: "Chamoy" },
+  banana3: { name: "Triple Bananas" },
+  green: { name: "Green Shell" },
+  green3: { name: "Triple Green Shells" },
+  red: { name: "Red Shell" },
+  red3: { name: "Triple Red Shells" },
+  blue: { name: "Blue Shell" },
+  chili: { name: "Mushroom" },
+  chili3: { name: "Triple Mushrooms" },
+  golden: { name: "Golden Mushroom" },
+  star: { name: "Star" },
+  bullet: { name: "Bullet Bill" },
+  bolt: { name: "Lightning" },
+  splat: { name: "Blooper" },
+  bomb: { name: "Bob-omb" },
+  fire: { name: "Fire Flower" },
+  boomerang: { name: "Boomerang Flower" },
+  piranha: { name: "Piranha Plant" },
+  horn: { name: "Super Horn" },
+  boo: { name: "Boo" },
+  coin: { name: "Coin" },
+  eight: { name: "Crazy Eight" },
 };
+
+// The Crazy Eight's items, used in this order
+export const EIGHT = ["star", "chili", "coin", "banana", "green", "red", "bomb", "splat"];
 
 // Item odds by race position bucket.
 const ODDS = [
   // leader
-  { banana: 38, green: 30, red: 8, chili: 10, splat: 14 },
+  { banana: 22, banana3: 8, green: 20, green3: 4, red: 4, chili: 6, splat: 7, coin: 14, horn: 8, bomb: 3, fire: 2, boomerang: 2 },
   // front of the pack
-  { banana: 18, green: 22, red: 26, chili: 16, chili3: 4, splat: 12, star: 2 },
+  { banana: 9, banana3: 8, green: 12, green3: 6, red: 18, red3: 4, chili: 10, chili3: 3, splat: 7, bomb: 5, fire: 5, boomerang: 5, piranha: 4, horn: 4, boo: 3, coin: 5, eight: 1, star: 2 },
   // middle
-  { banana: 8, green: 14, red: 24, chili: 15, chili3: 16, star: 9, splat: 8, bolt: 6 },
+  { banana: 3, banana3: 4, green: 5, green3: 7, red: 11, red3: 10, chili: 7, chili3: 12, star: 6, splat: 5, bolt: 3, bomb: 5, fire: 5, boomerang: 4, piranha: 5, blue: 4, golden: 4, boo: 3, eight: 3, bullet: 2, horn: 2 },
   // back
-  { banana: 2, green: 5, red: 16, chili: 10, chili3: 30, star: 24, bolt: 13 },
+  { red: 5, red3: 8, chili: 4, chili3: 17, star: 13, bolt: 8, blue: 4, golden: 12, bullet: 13, eight: 7, piranha: 4, boo: 3, fire: 2 },
 ];
 
-export function rollItem(placeFrac, rnd = Math.random) {
+// banned: items that can't come up right now (only one Blue Shell on the road at a time)
+export function rollItem(placeFrac, rnd = Math.random, banned = null) {
   const b = placeFrac <= 0 ? 0 : placeFrac < 0.4 ? 1 : placeFrac < 0.75 ? 2 : 3;
   const table = ODDS[b];
   let total = 0;
-  for (const k in table) total += table[k];
+  for (const k in table) if (!banned?.has(k)) total += table[k];
   let r = rnd() * total;
   for (const k in table) {
+    if (banned?.has(k)) continue;
     r -= table[k];
     if (r <= 0) return k;
   }
   return "banana";
 }
 
-export function kartStats(charIndex, kartIndex, cc) {
-  const c = CHARACTERS[charIndex].stats;
+// The name a CPU racer goes by
+export const botName = (charIndex) => CHARACTERS[charIndex].botName || CHARACTERS[charIndex].name;
+
+// A racer's main colour (minimap dots and such); the Custom racer's is their paint.
+export const racerColor = (charIndex, look) => (CHARACTERS[charIndex].custom && Number.isInteger(look?.paint) ? look.paint : CHARACTERS[charIndex].color);
+
+export function kartStats(charIndex, kartIndex, cc, look) {
+  const custom = CHARACTERS[charIndex].custom && cleanStats(look?.stats);
+  const c = custom || CHARACTERS[charIndex].stats;
   const k = KARTS[kartIndex];
   const s = {
     speed: c.speed + k.mods.speed,
@@ -110,7 +138,7 @@ export const TRACKS = [
   },
   {
     name: "Cactus Canyon",
-    sub: "Mind the gap, amigo",
+    sub: "Mind the gap, buddy",
     theme: "desert",
     boundary: "wall",
     width: 24,
@@ -129,7 +157,7 @@ export const TRACKS = [
     music: { bpm: 128, root: 57, mode: "phrygian", seed: 23 },
   },
   {
-    name: "Pico Nevado",
+    name: "Snowy Peak",
     sub: "Climb high, drift down",
     theme: "snow",
     boundary: "wall",
@@ -149,7 +177,7 @@ export const TRACKS = [
     music: { bpm: 150, root: 62, mode: "dorian", seed: 37 },
   },
   {
-    name: "Playa Chamoy",
+    name: "Sunshine Beach",
     sub: "Sand, surf and sunshine",
     theme: "beach",
     boundary: "void",
@@ -188,6 +216,70 @@ export const TRACKS = [
     gaps: [{ at: 0.125, len: 10 }],
     music: { bpm: 160, root: 64, mode: "minor", seed: 53 },
   },
+  {
+    name: "Mars Aliens",
+    sub: "Low gravity, close encounters",
+    theme: "mars",
+    boundary: "wall",
+    width: 24,
+    shoulder: 8,
+    laps: 3,
+    gravity: 0.6, // floaty jumps: karts fall at 60% of the usual rate
+    points: [
+      [0, -150, 0], [0, -60, 0], [-8, 20, 2], [-45, 75, 5], [-110, 100, 8], [-175, 80, 10], [-215, 25, 10],
+      [-205, -35, 8], [-160, -60, 6], [-110, -50, 5], [-80, -90, 3], [-100, -150, 2], [-80, -205, 1],
+      [-30, -225, 0], [10, -205, 0],
+    ],
+    boxes: [0.2, 0.5, 0.8],
+    coins: [{ at: 0.16, lat: 0.4, n: 5 }, { at: 0.42, lat: -0.3, n: 5 }, { at: 0.68, lat: 0, n: 5 }, { at: 0.88, lat: 0.4, n: 4 }],
+    boosts: [{ at: 0.3, lat: 0 }, { at: 0.56, lat: 0.3 }, { at: 0.93, lat: -0.3 }],
+    ramps: [{ at: 0.075 }],
+    gaps: [{ at: 0.083, len: 13 }],
+    music: { bpm: 136, root: 58, mode: "dorian", seed: 67 },
+  },
+  {
+    name: "Miami Vice",
+    sub: "Neon, storms and go-fast boats",
+    theme: "miami",
+    boundary: "wall",
+    width: 24,
+    shoulder: 7,
+    laps: 3,
+    scale: 1.08,
+    // Ocean Drive, then out over the bay on two causeways (the second one's drawbridge is up)
+    points: [
+      [0, -160, 0], [0, -40, 0], [5, 60, 0], [30, 110, 1], [90, 125, 3], [170, 120, 7], [240, 110, 3],
+      [285, 70, 1], [280, 10, 1], [245, -25, 1], [190, -40, 5], [120, -50, 2], [80, -90, 1], [90, -150, 0],
+      [60, -205, 0], [15, -215, 0],
+    ],
+    boxes: [0.2, 0.5, 0.8],
+    coins: [{ at: 0.1, lat: 0.4, n: 5 }, { at: 0.38, lat: -0.3, n: 5 }, { at: 0.7, lat: 0.3, n: 5 }, { at: 0.86, lat: 0, n: 4 }],
+    boosts: [{ at: 0.3, lat: 0 }, { at: 0.53, lat: -0.3 }, { at: 0.92, lat: 0.3 }],
+    ramps: [{ at: 0.628 }],
+    gaps: [{ at: 0.636, len: 10 }],
+    music: { bpm: 116, root: 57, mode: "minor", seed: 83 },
+  },
+  {
+    name: "Zoo City",
+    sub: "Wave at the animals",
+    theme: "zoo",
+    boundary: "wall",
+    width: 24,
+    shoulder: 7,
+    laps: 3,
+    scale: 1.15,
+    points: [
+      [0, -160, 0], [0, -60, 0], [-20, 30, 1], [-80, 70, 2], [-150, 60, 2], [-190, 0, 2], [-160, -50, 2],
+      [-110, -40, 1], [-70, -80, 0], [-90, -140, 0], [-150, -150, 1], [-190, -190, 2], [-150, -240, 1],
+      [-80, -250, 0], [-20, -225, 0],
+    ],
+    boxes: [0.2, 0.5, 0.8],
+    coins: [{ at: 0.16, lat: -0.4, n: 5 }, { at: 0.42, lat: 0.3, n: 5 }, { at: 0.62, lat: 0, n: 5 }, { at: 0.9, lat: -0.3, n: 4 }],
+    boosts: [{ at: 0.4, lat: 0 }, { at: 0.7, lat: 0.3 }, { at: 0.95, lat: -0.3 }],
+    ramps: [{ at: 0.1 }],
+    gaps: [],
+    music: { bpm: 130, root: 62, mode: "mixolydian", seed: 97 },
+  },
 ];
 
-export const CUPS = [{ name: "Copa Chamo", tracks: [0, 1, 2, 3, 4] }];
+export const CUPS = [{ name: "Chamo Cup", tracks: [0, 1, 2, 3, 4] }];

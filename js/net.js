@@ -117,7 +117,8 @@ export class Net {
 // Kart state packing: [id, x, y, z, yaw, speed, flags, dist, lap, vy]
 const F = {
   drift: 1, driftR: 2, boost: 4, star: 8, shrink: 16, spin: 32, tumble: 64,
-  respawn: 128, squish: 256, finished: 512, air: 1024, trick: 2048, hot: 4096,
+  respawn: 128, squish: 256, finished: 512, air: 1024, trick: 2048, hot: 4096, special: 32768,
+  bullet: 65536, boo: 131072, piranha: 262144,
 };
 const r2 = (v) => Math.round(v * 100) / 100;
 
@@ -136,6 +137,10 @@ export function packKart(k) {
   if (k.finished) f |= F.finished;
   if (!k.grounded) f |= F.air;
   if (k.trickT > 0) f |= F.trick;
+  if (k.special) f |= F.special;
+  if (k.bulletT > 0) f |= F.bullet;
+  if (k.booT > 0) f |= F.boo;
+  if (k.piranhaT > 0) f |= F.piranha;
   f |= (k.driftLevel & 3) << 13;
   return [k.id, r2(k.x), r2(k.y), r2(k.z), r2(k.yaw), r2(k.fwdSpeed), f, r2(k.dist), k.lap, r2(k.pitch), r2(k.steerVis)];
 }
@@ -156,5 +161,9 @@ export function applyFlags(k, f) {
   k.respawnMoved = resp;
   k.grounded = !(f & F.air);
   k.trickT = f & F.trick ? 0.2 : 0;
+  k.special = !!(f & F.special);
+  k.bulletT = f & F.bullet ? 0.2 : 0;
+  k.booT = f & F.boo ? 0.2 : 0;
+  k.piranhaT = f & F.piranha ? 0.2 : 0;
   if (f & F.finished) k.finished = true;
 }

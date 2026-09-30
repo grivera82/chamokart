@@ -1,14 +1,24 @@
 // Arcade kart physics. Pure JS (no rendering).
-import { kartStats } from "../data.js?v=3";
+import { kartStats } from "../data.js?v=17";
 
 export const KART_RADIUS = 1.25;
 export const GRAVITY = 30;
 export const DRIFT_LEVELS = [1.05, 2.1, 3.3];
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const TAU = Math.PI * 2;
+
+// Is a kart at track query q on a speed booster? (also used for other players' karts online)
+export function onBoostPad(t, q) {
+  for (const b of t.boosts) {
+    const d = t.delta(b.i, q.s);
+    if (d >= -0.5 && d <= b.len + 0.5 && Math.abs(q.lateral - b.lat * q.hw) < b.half) return true;
+  }
+  return false;
+}
 
 export class Kart {
-  constructor({ id, name, char, kart, cc, track, human = false, bot = false, local = true, owner = null }) {
+  constructor({ id, name, char, kart, cc, track, human = false, bot = false, local = true, owner = null, look = null }) {
     this.id = id;
     this.name = name;
     this.char = char;
@@ -19,11 +29,13 @@ export class Kart {
     this.bot = bot;
     this.local = local;
     this.owner = owner;
-    this.stats = kartStats(char, kart, cc);
+    this.look = look; // the Custom racer's creation (js/look.js), if that's who this is
+    this.stats = kartStats(char, kart, cc, look);
     this.speedMul = 1; // AI skill / rubber band
     this.ctl = { throttle: 0, brake: 0, steer: 0, drift: false, item: false, itemBack: false };
     this.prevDrift = false;
     this.prevItem = false;
+    this.special = false; // D-key toggle: CX-9 doors open, Bumblebee in robot mode
     this.events = [];
     this.q = {};
     this.reset();
@@ -49,6 +61,10 @@ export class Kart {
     this.tumbleT = 0;
     this.invulnT = 0;
     this.splatT = 0;
+    this.bulletT = 0; // Bullet Bill autopilot
+    this.booT = 0; // Boo: invisible, items and karts go right through
+    this.piranhaT = 0; // a Piranha Plant on the bumper, chomping whatever's in front
+    this.chompCd = 0;
     this.respawnT = 0;
     this.respawnTo = null;
     this.trickWindow = 0;
@@ -56,8 +72,14 @@ export class Kart {
     this.trickDone = false;
     this.item = null;
     this.itemCount = 0;
+    this.itemT = 0; // time left on a Golden Mushroom or Fire Flower once it's switched on
+    this.fireCd = 0;
+    this.orbitIds = []; // the cocos circling this kart as a shield, while it holds green or triple ones
+    this.trailId = null; // a banana or red coco held behind the kart as a shield
+    this.trailItem = null;
     this.roulette = 0;
     this.pendingItem = null;
+    this.pendingCount = 0;
     this.coins = 0;
     this.dist = 0;
     this.prevS = 0;
@@ -99,6 +121,11 @@ export class Kart {
     return KART_RADIUS * this.scale;
   }
 
+  // Nothing can hurt a kart under a Star or inside a Bullet Bill
+  get armored() {
+    return this.starT > 0 || this.bulletT > 0;
+  }
+
   get disabled() {
     return this.spinT > 0 || this.tumbleT > 0 || this.respawnT > 0;
   }
@@ -126,12 +153,20 @@ export class Kart {
     }
   }
 
-  // kind: 'spin' | 'tumble' | 'squish'
+  // kind: 'spin' | 'tumble' | 'squish' | 'blast' (a Blue Shell: a bigger, longer tumble)
   hit(kind) {
-    if (this.starT > 0 || this.invulnT > 0 || this.respawnT > 0 || this.finished) return false;
+    if (this.armored || this.booT > 0 || this.invulnT > 0 || this.respawnT > 0 || this.finished) return false;
     this.endDrift(false);
     this.boostT = 0;
-    if (kind === "tumble") {
+    if (kind === "blast") {
+      this.tumbleT = 2;
+      this.vy = 15;
+      this.grounded = false;
+      this.vx *= 0.05; this.vz *= 0.05;
+      this.invulnT = 3;
+      this.events.push("blasted");
+      kind = "tumble";
+    } else if (kind === "tumble") {
       this.tumbleT = 1.25;
       this.vy = 9;
       this.grounded = false;
@@ -154,12 +189,13 @@ export class Kart {
   }
 
   zap(duration) {
-    if (this.starT > 0 || this.respawnT > 0 || this.finished) return false;
+    if (this.armored || this.booT > 0 || this.respawnT > 0 || this.finished) return false;
     this.shrinkT = Math.max(this.shrinkT, duration);
     this.endDrift(false);
     this.spinT = Math.max(this.spinT, 0.8);
     this.item = null;
     this.itemCount = 0;
+    this.itemT = 0;
     this.roulette = 0;
     this.pendingItem = null;
     this.vx *= 0.5; this.vz *= 0.5;
@@ -195,12 +231,16 @@ export class Kart {
     this.tumbleT = Math.max(0, this.tumbleT - dt);
     this.invulnT = Math.max(0, this.invulnT - dt);
     this.splatT = Math.max(0, this.splatT - dt);
+    this.booT = Math.max(0, this.booT - dt);
+    this.piranhaT = Math.max(0, this.piranhaT - dt);
+    this.fireCd = Math.max(0, this.fireCd - dt);
     this.trickWindow = Math.max(0, this.trickWindow - dt);
     this.trickT = Math.max(0, this.trickT - dt);
     this.wallHitT = Math.max(0, this.wallHitT - dt);
     this.bumpT = Math.max(0, (this.bumpT || 0) - dt);
 
     if (this.respawnT > 0) return this.stepRespawn(dt);
+    if (this.bulletT > 0) return this.stepBullet(dt, race);
 
     const disabled = this.disabled;
     let throttle = disabled ? 0 : c.throttle;
@@ -366,7 +406,7 @@ export class Kart {
         const vyNew = (q.height - prevY) / dt;
         if (this.vy - vyNew > 6.5 && this.vy > 1.5) {
           this.grounded = false; // crest: catch some air
-          this.vy -= GRAVITY * dt;
+          this.vy -= GRAVITY * t.gravity * dt;
           this.y = prevY + this.vy * dt;
         } else {
           this.y = q.height;
@@ -376,7 +416,7 @@ export class Kart {
     }
     if (!this.grounded) {
       this.airT += dt;
-      this.vy -= GRAVITY * dt;
+      this.vy -= GRAVITY * t.gravity * dt;
       this.y += this.vy * dt;
       if (q.ground && this.y <= q.height) {
         this.y = q.height;
@@ -403,20 +443,22 @@ export class Kart {
     // Surface features
     if (this.grounded) {
       if (q.onRoad && !q.gap) this.lastSafe = q.idx;
-      this.onBoostPad = false;
-      for (const b of t.boosts) {
-        const d = t.delta(b.i, q.s);
-        if (d >= -0.5 && d <= b.len + 0.5 && Math.abs(q.lateral - b.lat * q.hw) < b.half) {
-          this.onBoostPad = true;
-          if (this.boostT < 0.9) {
-            this.boost(1.0, 1.36);
-            this.events.push("pad");
-          }
-        }
+      this.onBoostPad = onBoostPad(t, q);
+      if (this.onBoostPad && this.boostT < 0.9) {
+        this.boost(1.0, 1.36);
+        this.events.push("pad");
       }
     }
 
-    // Progress
+    this.progress(q, race);
+
+    // Wrong way
+    if (along < -0.3 && vf > 4 && this.grounded) this.wrongT += dt;
+    else this.wrongT = Math.max(0, this.wrongT - dt * 2);
+  }
+
+  progress(q, race) {
+    const t = this.track;
     const ds = t.delta(this.prevS, q.s);
     this.dist += ds;
     this.prevS = q.s;
@@ -425,10 +467,50 @@ export class Kart {
       this.lap = lapNow;
       this.events.push("lap");
     }
+  }
 
-    // Wrong way
-    if (along < -0.3 && vf > 4 && this.grounded) this.wrongT += dt;
-    else this.wrongT = Math.max(0, this.wrongT - dt * 2);
+  // Bullet Bill: an autopilot that rockets down the road far faster than anyone can drive,
+  // hovering straight over any gap, and only lets go of the wheel above solid road.
+  stepBullet(dt, race) {
+    const t = this.track;
+    this.bulletT -= dt;
+    this.drifting = false;
+    this.driftArmed = false;
+    const ahead = t.wrap(this.q.idx + Math.round(16 / t.spacing));
+    const p = t.pointAt(ahead, t.line[ahead] * 0.35);
+    let d = Math.atan2(p.x - this.x, p.z - this.z) - this.yaw;
+    while (d > Math.PI) d -= TAU;
+    while (d < -Math.PI) d += TAU;
+    this.yaw += clamp(d, -3.5 * dt, 3.5 * dt);
+    this.steerVis += (clamp(-d * 2, -1, 1) - this.steerVis) * Math.min(1, dt * 10);
+    const speed = this.stats.maxSpeed * 1.6;
+    this.vx = Math.sin(this.yaw) * speed;
+    this.vz = Math.cos(this.yaw) * speed;
+    this.fwdSpeed = speed;
+    this.x += this.vx * dt;
+    this.z += this.vz * dt;
+    const q = t.query(this.x, this.z, this.hint, this.q);
+    this.hint = q.idx;
+    const floor = (q.ground ? q.height : q.baseY) + 0.9;
+    this.y += (floor - this.y) * Math.min(1, dt * 8);
+    this.vy = 0;
+    this.grounded = true;
+    this.airT = 0;
+    this.pitch += (0 - this.pitch) * Math.min(1, dt * 8);
+    this.offroad = false;
+    this.onBoostPad = false;
+    this.wrongT = 0;
+    if (q.onRoad && !q.gap) this.lastSafe = q.idx;
+    this.progress(q, race);
+    if (this.bulletT <= 0) {
+      if (!q.ground || q.gap || !q.onRoad || t.gapAt(t.wrap(q.idx + 4))) this.bulletT = 0.05; // not over a hole
+      else {
+        this.bulletT = 0;
+        this.invulnT = 1;
+        this.boost(0.8, 1.3, true);
+        this.events.push("bulletEnd");
+      }
+    }
   }
 
   stepRespawn(dt) {
@@ -436,7 +518,7 @@ export class Kart {
     this.respawnT -= dt;
     if (!this.respawnMoved) {
       // Keep falling for a moment
-      this.vy -= GRAVITY * dt;
+      this.vy -= GRAVITY * t.gravity * dt;
       this.y += this.vy * dt;
       this.x += this.vx * dt * 0.5;
       this.z += this.vz * dt * 0.5;

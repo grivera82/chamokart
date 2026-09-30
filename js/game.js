@@ -1,17 +1,22 @@
 // A single race: glues simulation, rendering, HUD, audio, input and network.
 import * as THREE from "three";
-import { RaceSim, COUNTDOWN } from "./sim/race.js?v=3";
-import { RaceView } from "./view/raceview.js?v=3";
-import { buildKart } from "./view/models.js?v=3";
-import { TRACKS } from "./data.js?v=3";
-import { audio } from "./audio.js?v=4";
-import { input } from "./input.js?v=4";
-import { packKart, applyFlags } from "./net.js?v=3";
-import { ordinal } from "./hud.js?v=3";
+import { RaceSim, COUNTDOWN } from "./sim/race.js?v=19";
+import { RaceView } from "./view/raceview.js?v=23";
+import { buildKart } from "./view/models.js?v=20";
+import { TRACKS, CHARACTERS } from "./data.js?v=17";
+import { audio } from "./audio.js?v=11";
+import { input } from "./input.js?v=6";
+import { packKart, applyFlags } from "./net.js?v=7";
+import { onBoostPad } from "./sim/kart.js?v=18";
+import { ordinal } from "./hud.js?v=22";
+import { labelTexture } from "./view/textures.js?v=8";
+import { Tutorial } from "./tutorial.js?v=4";
+import { ReplayRecorder, ReplayPlayer } from "./replay.js?v=5";
 
 const SEND_HZ = 20;
 const INTERP_DELAY = 110;
-const SPATIAL = new Set(["wall", "hit:spin", "hit:tumble", "hit:squish", "use:banana", "use:green", "use:red", "boost", "bump", "land"]);
+const SPATIAL = new Set(["wall", "hit:spin", "hit:tumble", "hit:squish", "use:banana", "use:green", "use:red", "use:bomb", "use:boomerang", "use:fire", "boost", "bump", "land", "chomp", "bullet", "boo"]);
+const SOUND_OF = { "use:fire": "fireball", "use:bomb": "throw", "use:boomerang": "throw" };
 
 export class RaceSession {
   constructor(app, cfg) {
@@ -42,6 +47,10 @@ export class RaceSession {
     });
     this.view.resize(app.width, app.height);
     this.me = this.sim.kartById(cfg.localId);
+    // D is a special move for some cars: the CX-9 opens its doors, Bumblebee transforms.
+    this.specialCar = this.me && cfg.mode !== "attract" ? CHARACTERS[this.me.char]?.car : null;
+    this.hasSpecial = this.specialCar === "cx9" || this.specialCar === "transformer";
+    if (this.hasSpecial) input.specialKey = true;
     this.remote = new Map();
     this.sendAcc = 0;
     this.finishShownAt = null;
@@ -51,47 +60,91 @@ export class RaceSession {
     this.finalLapPlayed = false;
     this.def = TRACKS[cfg.track];
     if (cfg.mode !== "attract") {
-      app.hud.setup(this.sim, cfg.localId, { mode: cfg.mode });
+      app.hud.setup(this.sim, cfg.localId, { mode: cfg.mode, records: cfg.mode === "tt" && !cfg.daily });
       audio.playSong(this.def.music);
       audio.engine("me", true);
     }
-    // Time trial ghost
+    this.tutorial = cfg.mode === "tutorial" ? new Tutorial(this, () => app.onTutorialDone(this)) : null;
+    // Highlights replay after races against other racers
+    this.recorder = ["gp", "vs", "online"].includes(cfg.mode) && this.me ? new ReplayRecorder(this.sim, this.me.id) : null;
+    this.replay = null;
+    // Time trial ghosts: your best run and/or the board record holder's
     this.ghostFrames = [];
     this.ghostAcc = 0;
-    if (cfg.mode === "tt" && cfg.ghost) this.setupGhost(cfg.ghost);
+    this.ghosts = [];
+    if (cfg.mode === "tt") {
+      if (cfg.ghost) this.setupGhost(cfg.ghost);
+      if (cfg.recordGhost) this.setupGhost(cfg.recordGhost, `#${cfg.recordGhost.rank} ${cfg.recordGhost.name}`);
+    }
   }
 
-  setupGhost(g) {
-    this.ghost = g;
-    const model = buildKart(g.char, g.kart);
+  setupGhost(g, label) {
+    const model = buildKart(g.char, g.kart, g.look);
     model.traverse((o) => {
       if (o.isMesh) {
-        o.material = o.material.clone();
-        o.material.transparent = true;
-        o.material.opacity = 0.4;
-        o.material.depthWrite = false;
+        const ghost = (m) => Object.assign(m.clone(), { transparent: true, opacity: 0.4, depthWrite: false });
+        o.material = Array.isArray(o.material) ? o.material.map(ghost) : ghost(o.material);
         o.castShadow = false;
       }
     });
-    this.ghostModel = model;
+    if (label) {
+      // The record holder's ghost carries a name tag, in gold
+      const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(label, "#ffd23f"), depthWrite: false, transparent: true, opacity: 0.85 }));
+      tag.scale.set(4, 1, 1);
+      tag.position.y = 2.9;
+      model.add(tag);
+    }
     this.view.scene.add(model);
+    this.ghosts.push({ g, model, record: !!label });
   }
 
   updateGhost() {
-    if (!this.ghost) return;
-    const f = this.ghost.frames;
     const t = Math.max(0, this.sim.time) * 20;
-    const i = Math.min(f.length - 2, Math.floor(t));
-    if (i < 0 || f.length < 2) return;
-    const a = f[i], b = f[i + 1];
-    const u = Math.min(1, t - i);
-    let dy = b[3] - a[3];
-    while (dy > Math.PI) dy -= Math.PI * 2;
-    while (dy < -Math.PI) dy += Math.PI * 2;
-    this.ghostModel.position.set(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u);
-    this.ghostModel.rotation.y = a[3] + dy * u;
-    this.ghostModel.visible = this.sim.time >= 0 && t < f.length;
-    this.app.hud.ghost = { x: this.ghostModel.position.x, z: this.ghostModel.position.z };
+    this.app.hud.ghosts = [];
+    for (const { g, model, record } of this.ghosts) {
+      const f = g.frames;
+      const i = Math.min(f.length - 2, Math.floor(t));
+      if (i < 0 || f.length < 2) continue;
+      const a = f[i], b = f[i + 1];
+      const u = Math.min(1, t - i);
+      let dy = b[3] - a[3];
+      while (dy > Math.PI) dy -= Math.PI * 2;
+      while (dy < -Math.PI) dy += Math.PI * 2;
+      model.position.set(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u);
+      model.rotation.y = a[3] + dy * u;
+      model.visible = this.sim.time >= 0 && t < f.length;
+      this.app.hud.ghosts.push({ x: model.position.x, z: model.position.z, record });
+    }
+  }
+
+  // Play the race's highlights; calls ui.done() when they end (or right away if there are none).
+  playHighlights(ui) {
+    const clips = this.recorder?.clips() || [];
+    if (!clips.length) return ui.done(), false;
+    this.replay = new ReplayPlayer(this, this.recorder, clips, {
+      ...ui,
+      done: () => {
+        this.replay = null;
+        ui.done();
+      },
+    });
+    return true;
+  }
+
+  skipReplay() {
+    this.replay?.finish();
+  }
+
+  toggleSpecial() {
+    if (!this.hasSpecial || this.paused) return false;
+    const on = (this.me.special = !this.me.special);
+    if (this.specialCar === "transformer") {
+      audio.play(on ? "transform" : "transformBack");
+      return true;
+    }
+    audio.play(on ? "doorOpen" : "doorClose");
+    audio.say("Mashamiiiiii", { pitch: 1.15, rate: 0.85 });
+    return true;
   }
 
   // ---------------------------------------------------------------- network
@@ -110,12 +163,14 @@ export class RaceSession {
     // Only accept effects for karts the sender actually controls.
     const owns = (id) => this.sim.kartById(id)?.owner === from;
     if (e.type === "spawn" && !owns(e.o?.owner)) return;
-    if ((e.type === "bolt" || e.type === "splat") && !owns(e.from)) return;
+    if ((e.type === "bolt" || e.type === "splat" || e.type === "horn" || e.type === "steal") && !owns(e.from)) return;
+    if (e.type === "gone" && !owns(this.sim.items.objects.find((o) => o.id === e.id)?.owner)) return;
     this.sim.items.applyRemote(e);
     if (e.type === "bolt") {
       audio.play("bolt");
       this.app.hud.flash("#bfe4ff", 0.85);
     }
+    if (e.type === "spawn" && e.o?.type === "blue") audio.play("blueShell", 0.6);
   }
 
   onFinish(id, time) {
@@ -181,6 +236,10 @@ export class RaceSession {
       applyFlags(k, A[6]);
       t.query(k.x, k.z, k.hint, k.q);
       k.hint = k.q.idx;
+      // Other players' karts don't run physics here, so spot them rolling onto a speed booster
+      const pad = k.grounded && onBoostPad(t, k.q);
+      if (pad && !k.remotePad) k.events.push("pad");
+      k.remotePad = pad;
     }
   }
 
@@ -207,12 +266,18 @@ export class RaceSession {
     const hud = this.app.hud;
     for (const { kart: k, e } of events) {
       const mine = k === me;
+      if (e === "pad" && CHARACTERS[k.char]?.style === "tabby") {
+        // Dorito's meow: loud if it's you, fainter from a Dorito nearby
+        const d = mine || !me ? 0 : Math.hypot(k.x - me.x, k.z - me.z);
+        if (d < 60) audio.play("meow", mine ? 1 : (1 - d / 60) * 0.6);
+      }
       if (!mine) {
+        if (e === "use:blue") audio.play("blueShell", 0.5); // heard from anywhere: it could be coming for you
         if (!me || !SPATIAL.has(e)) continue;
         const d = Math.hypot(k.x - me.x, k.z - me.z);
         if (d > 50) continue;
         const v = (1 - d / 50) * 0.5;
-        const name = e.startsWith("hit") ? "spin" : e.startsWith("use") ? "throw" : e;
+        const name = e.startsWith("hit") ? "spin" : SOUND_OF[e] || (e.startsWith("use") ? "throw" : e);
         audio.play(name, v);
         continue;
       }
@@ -224,7 +289,17 @@ export class RaceSession {
         case "boost": audio.play("boost"); break;
         case "roulette": audio.play("roulette"); break;
         case "itemReady": audio.play("itemGet"); break;
-        case "use:banana": case "use:green": case "use:red": audio.play("throw"); break;
+        case "use:banana": case "use:green": case "use:red": case "use:bomb": case "use:boomerang": audio.play("throw"); break;
+        case "use:fire": audio.play("fireball"); break;
+        case "use:blue": audio.play("blueShell"); hud.message("Blue Shell!", "info", "It's going after the leader", 1.4); break;
+        case "use:horn": audio.play("horn"); hud.flash("#fff6c0", 0.5); break;
+        case "use:coin": audio.play("coin"); break;
+        case "bullet": audio.play("bullet"); break;
+        case "piranha": audio.play("chomp"); break;
+        case "chomp": audio.play("chomp", 0.8); break;
+        case "boo": audio.play("boo"); break;
+        case "stolen": audio.play("stolen"); hud.message("A Boo stole your item!", "info", "", 1.6); break;
+        case "blasted": hud.flash("#9ad0ff", 0.7); break;
         case "hit:spin": audio.play("spin"); break;
         case "hit:tumble": audio.play("shellHit"); audio.play("spin", 0.6); break;
         case "hit:squish": audio.play("splat"); break;
@@ -242,6 +317,7 @@ export class RaceSession {
         case "use:bolt": audio.play("bolt"); hud.flash("#bfe4ff", 0.6); break;
         case "use:splat": audio.play("splat", 0.6); break;
         case "lap":
+          if (this.tutorial) break; // laps don't count in the tutorial
           hud.lap(k, this.sim);
           if (k.lap === this.sim.laps) {
             audio.play("finalLap");
@@ -265,6 +341,11 @@ export class RaceSession {
     for (const f of this.sim.fx) {
       if (f.type === "boxBreak" && me && Math.hypot(f.x - me.x, f.z - me.z) < 8) audio.play("box", 0.7);
       if ((f.type === "shellHit" || f.type === "poof") && me && Math.hypot(f.x - me.x, f.z - me.z) < 40) audio.play("shellHit", 0.5);
+      if ((f.type === "boom" || f.type === "bigBoom") && me) {
+        const d = Math.hypot(f.x - me.x, f.z - me.z);
+        if (d < 90) audio.play(f.type, Math.max(0.25, 1 - d / 90));
+      }
+      if (f.type === "horn" && me && f.from !== me.id && Math.hypot(f.x - me.x, f.z - me.z) < 60) audio.play("horn", 0.6);
     }
   }
 
@@ -272,6 +353,12 @@ export class RaceSession {
   update(dt) {
     const sim = this.sim;
     const me = this.me;
+    if (this.replay) {
+      // The race is paused behind the replay (online state keeps buffering for afterwards)
+      this.replay.update(dt);
+      audio.updateEngine("me", 0, { vol: 0 });
+      return;
+    }
     if (this.online) {
       const target = (this.net.serverNow() - this.cfg.startAt) / 1000;
       const diff = target - sim.time;
@@ -287,7 +374,10 @@ export class RaceSession {
     this.view.lookBack = ctl.lookBack && me && !me.finished;
     if (!this.paused || this.online) sim.update(dt);
     const events = sim.takeEvents();
+    this.app.caster?.tap(this, events, sim.fx); // anyone watching sees them too
+    if (!this.paused) this.tutorial?.update(dt, events);
     if (this.cfg.mode !== "attract") this.playEvents(events);
+    this.recorder?.record(dt, events);
     this.view.update(dt, events);
     this.flushOutbox();
     if (this.online) this.sendState(dt);
@@ -332,6 +422,7 @@ export class RaceSession {
       id: k.id,
       name: k.name,
       char: k.char,
+      look: k.look,
       human: k.human,
       time: k.finished ? k.finishTime : sim.estimateFinish(k),
       estimated: !k.finished,
@@ -349,6 +440,8 @@ export class RaceSession {
   }
 
   dispose() {
+    this.tutorial?.dispose();
+    if (this.hasSpecial) input.specialKey = false;
     audio.engine("me", false);
     this.view.dispose();
   }

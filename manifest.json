@@ -1,0 +1,10 @@
+{
+  "name": "Chamo Kart",
+  "short_name": "Chamo Kart",
+  "start_url": "/chamokart/",
+  "scope": "/chamokart/",
+  "display": "fullscreen",
+  "background_color": "#e23b3b",
+  "theme_color": "#e23b3b",
+  "icons": [{ "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }]
+}

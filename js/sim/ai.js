@@ -50,7 +50,7 @@ export class AIDriver {
     const fx = Math.sin(k.yaw), fz = Math.cos(k.yaw);
     let dodge = 0;
     for (const o of race.items.objects) {
-      if (o.type !== "banana" && !(o.type === "green" && o.owner !== k.id)) continue;
+      if (o.type !== "banana" && o.type !== "bomb" && !((o.type === "green" || o.type === "fire") && o.owner !== k.id)) continue;
       const dx = o.x - k.x, dz = o.z - k.z;
       const fwd = dx * fx + dz * fz;
       if (fwd < 2 || fwd > 32) continue;
@@ -154,12 +154,6 @@ export class AIDriver {
   useItems(dt, race) {
     const k = this.kart;
     const c = k.ctl;
-    c.item = false;
-    c.itemBack = false;
-    if (!k.item || k.roulette > 0 || race.phase !== "race") return;
-    this.itemTimer -= dt;
-    this.chiliGap -= dt;
-    const t = k.track;
     const fx = Math.sin(k.yaw), fz = Math.cos(k.yaw);
     const behindClose = race.karts.some((o) => {
       if (o === k) return false;
@@ -167,6 +161,21 @@ export class AIDriver {
       const f = dx * fx + dz * fz;
       return f < -2 && f > -16 && Math.abs(dx * -fz + dz * fx) < 4;
     });
+    // Holding an item behind (a banana as a shield, or a red coco we just tapped): let go when
+    // the hold time is up, or drop the banana early on someone right on our tail.
+    if (k.trailId) {
+      this.holdT -= dt;
+      const letGo = this.holdT <= 0 || (k.trailItem === "banana" && behindClose && this.rng() < dt * 3);
+      c.item = !letGo;
+      c.itemBack = letGo && this.letGoBack;
+      return;
+    }
+    c.item = false;
+    c.itemBack = false;
+    if (!k.item || k.roulette > 0 || race.phase !== "race") return;
+    this.itemTimer -= dt;
+    this.chiliGap -= dt;
+    const t = k.track;
     const targetAhead = race.karts.some((o) => {
       if (o === k) return false;
       const dx = o.x - k.x, dz = o.z - k.z;
@@ -175,37 +184,73 @@ export class AIDriver {
     });
     const straight = Math.abs(t.turnAhead(k.q.idx, 0, 25)) < 0.35;
     let use = false, back = false;
+    const near = (r) => race.karts.some((o) => o !== k && (o.x - k.x) ** 2 + (o.z - k.z) ** 2 < r * r);
     switch (k.item) {
       case "banana":
-        if (behindClose && this.rng() < dt * 3) use = true;
-        else if (this.itemTimer < -4) use = true;
-        break;
+      case "banana3":
+        // Pick it up and drag it behind for a few seconds, then let it go
+        c.item = true;
+        this.holdT = 2 + this.rng() * 5;
+        this.letGoBack = false;
+        return;
       case "green":
+      case "green3":
+      case "boomerang":
         if (targetAhead && this.rng() < dt * 2 * this.aggression) use = true;
-        else if (behindClose && this.rng() < dt * 1.5) { use = true; back = true; }
+        else if (behindClose && this.rng() < dt * 1.5) { use = true; back = k.item !== "boomerang"; }
         else if (this.itemTimer < -8) use = true;
         break;
       case "red":
+      case "red3":
         if (k.place > 1 && this.itemTimer < 0) use = true;
         else if (k.place === 1 && behindClose) { use = true; back = true; }
         else if (this.itemTimer < -10) use = true;
+        break;
+      case "bomb":
+        if (targetAhead && this.rng() < dt * 1.5 * this.aggression) use = true;
+        else if (behindClose && this.rng() < dt * 1.5) { use = true; back = true; }
+        else if (this.itemTimer < -6) use = true;
         break;
       case "chili":
       case "chili3":
         if (this.chiliGap <= 0 && (straight || k.offroad) && this.itemTimer < 0) use = true;
         break;
+      case "golden":
+        // Once it's going, keep boosting
+        if (this.chiliGap <= 0 && (k.itemT > 0 || ((straight || k.offroad) && this.itemTimer < 0))) use = true;
+        break;
+      case "fire":
+        if (k.itemT > 0) use = (targetAhead && this.rng() < dt * 6) || (behindClose && this.rng() < dt * 3 && (back = true));
+        else use = this.itemTimer < 0;
+        break;
+      case "horn": {
+        // Save it for a Blue Shell coming for us, or blast a crowd
+        const blue = race.items.objects.some((o) => o.type === "blue" && o.target === k.id && (o.x - k.x) ** 2 + (o.z - k.z) ** 2 < 30 * 30);
+        use = blue || (near(8) && this.rng() < dt * 2 * this.aggression) || (k.place > 1 && this.itemTimer < -15);
+        break;
+      }
       case "star":
         use = this.itemTimer < 1;
         break;
+      case "blue":
+        use = this.itemTimer < 0 && (k.place > 1 || this.itemTimer < -12);
+        break;
       case "bolt":
       case "splat":
+      case "bullet":
+      case "piranha":
+      case "boo":
+      case "coin":
+      case "eight":
         use = this.itemTimer < 0;
         break;
     }
     if (use) {
       c.item = true;
       c.itemBack = back;
-      this.itemTimer = 0.5 + this.rng() * 3;
+      this.holdT = 0; // a tap: if this item gets held (red coco), let go on the next frame
+      this.letGoBack = back;
+      this.itemTimer = k.item === "eight" ? 0.3 + this.rng() * 1.5 : 0.5 + this.rng() * 3;
       this.chiliGap = 1.1;
     }
   }

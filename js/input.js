@@ -51,7 +51,8 @@ export class Input {
   }
 
   down(action) {
-    return KEYS[action].some((k) => this.keys.has(k));
+    // Driving the CX-9 or Bumblebee, D is their special move instead of steering.
+    return KEYS[action].some((k) => this.keys.has(k) && !(this.specialKey && k === "KeyD"));
   }
 
   isKey(action, code) {

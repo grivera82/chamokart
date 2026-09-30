@@ -1,7 +1,8 @@
 // Turntable scene for the character select screen + portrait renderer.
 import * as THREE from "three";
-import { buildKart, mat } from "./models.js?v=3";
-import { CHARACTERS } from "../data.js?v=3";
+import { buildKart, mat, poseTransformer, TRANSFORM_TIME } from "./models.js?v=20";
+import { CHARACTERS } from "../data.js?v=17";
+import { lookKey } from "../look.js?v=3";
 
 function lights(scene) {
   scene.add(new THREE.HemisphereLight(0xffffff, 0x6a5a8a, 1.4));
@@ -48,33 +49,60 @@ export class Showroom {
     this.camera.position.set(0, 3.1, 8.2);
     this.camera.lookAt(0, 0.9, 0);
     this.angle = 0.6;
+    this.spinRate = 0.7;
+    this.zoom = this.zoomT = 0; // 1: close-up of the driver
     this.key = "";
   }
 
-  setKart(char, kart) {
-    const key = char + ":" + kart;
+  setKart(char, kart, look) {
+    const key = char + ":" + kart + ":" + (CHARACTERS[char].custom ? lookKey(look) : "");
     if (key === this.key) return;
+    const hop = !this.key.startsWith(char + ":" + kart + ":"); // editing a look doesn't bounce the table
     this.key = key;
+    this.table.traverse((o) => {
+      o.geometry?.dispose();
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      for (const m of mats) if (!m.userData?.shared) m.dispose();
+    });
     this.table.clear();
-    const m = buildKart(char, kart);
+    const m = buildKart(char, kart, look);
     m.traverse((o) => (o.castShadow = true));
+    if (m.userData.showroomScale) m.scale.setScalar(m.userData.showroomScale); // the full-size cars outgrow the turntable
     this.table.add(m);
     this.model = m;
-    this.hop = 0.35;
+    if (hop) this.hop = 0.35;
+    this.xformClock = 0;
+    this.xformT = 0;
   }
 
   resize(w, h) {
     this.camera.aspect = w / h;
     // Push the kart to the right on wide screens and phones held sideways (the panel sits on the left).
-    if (w > 860) this.camera.setViewOffset(w, h, -w * 0.2, 0, w, h);
+    // In the look editor on a phone held upright, the panel is at the bottom: lift the kart up.
+    if (this.editing && w <= 600 && h > w) this.camera.setViewOffset(w, h, 0, h * 0.22, w, h);
+    else if (w > 860) this.camera.setViewOffset(w, h, -w * 0.2, 0, w, h);
     else if (w > h && h <= 500) this.camera.setViewOffset(w, h, -w * 0.25, 0, w, h);
     else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
   }
 
   update(dt) {
-    this.angle += dt * 0.7;
+    this.angle += dt * this.spinRate;
     this.table.rotation.y = this.angle;
+    this.model?.userData.tick?.(dt, performance.now() / 1000);
+    // Ease the camera between the whole kart and a close-up of the driver (the look editor)
+    this.zoomT += (this.zoom - this.zoomT) * Math.min(1, dt * 5);
+    const z = this.zoomT;
+    this.camera.position.set(0, 3.1 - z * 0.3, 8.2 - z * 2.8);
+    this.camera.lookAt(0, 0.9 + z * 0.55, -z * 0.2);
+    // Bumblebee shows off: 2.5 s as a car, then transforms, 2.5 s as a robot, and back
+    const ud = this.model?.userData;
+    if (ud?.transform) {
+      this.xformClock += dt;
+      const robot = Math.floor(this.xformClock / (2.5 + TRANSFORM_TIME)) % 2 === 1;
+      this.xformT = Math.max(0, Math.min(1, this.xformT + (robot ? dt : -dt) / TRANSFORM_TIME));
+      poseTransformer(ud, this.xformT);
+    }
     if (this.hop > 0) {
       this.hop -= dt;
       this.table.position.y = Math.sin(Math.max(0, this.hop) / 0.35 * Math.PI) * 0.5;
@@ -86,8 +114,13 @@ export class Showroom {
   }
 }
 
+// A portrait of one racer (the Custom racer as `look`), as a data URL.
+export function renderPortrait(renderer, char, look, size = 160) {
+  return renderPortraits(renderer, size, [[char, look]])[0];
+}
+
 // Render a small portrait (data URL) for every character using the main renderer.
-export function renderPortraits(renderer, size = 160) {
+export function renderPortraits(renderer, size = 160, which = CHARACTERS.map((c, i) => [i, null])) {
   const scene = new THREE.Scene();
   lights(scene);
   const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
@@ -101,9 +134,10 @@ export function renderPortraits(renderer, size = 160) {
   renderer.setSize(size, size, false);
   renderer.setClearColor(0x000000, 0);
   const urls = [];
-  for (let i = 0; i < CHARACTERS.length; i++) {
-    const m = buildKart(i, 0);
+  for (const [i, look] of which) {
+    const m = buildKart(i, 0, look);
     m.rotation.y = 0.25;
+    if (m.userData.portraitScale) m.scale.setScalar(m.userData.portraitScale); // keep Lucas's head in frame
     scene.add(m);
     renderer.render(scene, cam);
     urls.push(renderer.domElement.toDataURL("image/png"));
