@@ -2,7 +2,7 @@
   <img src=".github/logo.png" alt="Chamo Kart" width="420">
 </p>
 
-<p align="center"><b>¡Arranca, chamo!</b> A 3D kart racer that runs right in your browser.<br>
+<p align="center">A 3D kart racer that runs right in your browser.<br>
 Race CPUs in the Copa Chamo, chase your own ghost, or race your friends online with voice chat.</p>
 
 <p align="center"><a href="https://jgrivera.com/chamokart/"><b>▶ Play now at jgrivera.com/chamokart</b></a></p>
