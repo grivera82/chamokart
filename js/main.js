@@ -1,21 +1,21 @@
 // Chamo Kart: app shell, menus, game flow.
 import * as THREE from "three";
-import { CHARACTERS, KARTS, TRACKS, CUPS, POINTS, ITEMS, botName } from "./data.js?v=17";
+import { CHARACTERS, KARTS, TRACKS, CUPS, POINTS, ITEMS, botName } from "./data.js?v=19";
 import { CUSTOM, DEFAULT_LOOK, LOOK_OPTIONS, STAT_KEYS, STAT_POINTS, STAT_MIN, STAT_MAX, cleanLook, lookKey, randomLook } from "./look.js?v=3";
-import { getTrack } from "./sim/race.js?v=19";
-import { RaceSession } from "./game.js?v=30";
-import { HUD, ITEM_SVG, fmtTime, ordinal } from "./hud.js?v=22";
+import { getTrack } from "./sim/race.js?v=21";
+import { RaceSession } from "./game.js?v=35";
+import { HUD, ITEM_SVG, fmtTime, ordinal } from "./hud.js?v=24";
 import { audio } from "./audio.js?v=11";
 import { input } from "./input.js?v=6";
 import { Net } from "./net.js?v=7";
 import { Voice } from "./voice.js?v=5";
-import { Showroom, renderPortraits, renderPortrait } from "./view/showroom.js?v=20";
+import { Showroom, renderPortraits, renderPortrait } from "./view/showroom.js?v=24";
 import { setAnisotropy } from "./view/textures.js?v=8";
-import { serverRequest } from "./records.js?v=10";
+import { serverRequest } from "./records.js?v=12";
 import { dailyChallenge, dailyId, msToNextDaily } from "./daily.js?v=4";
 import { Presence } from "./presence.js?v=3";
 import { drawShareCard } from "./sharecard.js?v=2";
-import { Broadcaster, SpectateSession } from "./spectate.js?v=12";
+import { Broadcaster, SpectateSession } from "./spectate.js?v=16";
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -42,6 +42,9 @@ function browserName() {
   const os = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "iOS" : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) ? "Mac" : /Linux|CrOS/.test(ua) ? "Linux" : "";
   return os ? `${b} · ${os}` : b;
 }
+// Watchers' quick reactions (keys 1-6). The server only checks the index: keep its REACTION_COUNT in step.
+const REACTIONS = ["👏", "🔥", "😂", "😱", "🍌", "❤️"];
+
 // The editor's colour swatches (any other colour is one tap away on the colour wheel)
 const PALETTE = [0xe23b3b, 0xff7a1a, 0xffd23f, 0x7ad04a, 0x1f9d55, 0x38e0c8, 0x6ac8ff, 0x2f5bd9, 0x8e44ad, 0xff4f9a, 0xffffff, 0xb8bcc8, 0x4a4a55, 0x15151c, 0x8a5a2b];
 const SKINS = [0xf3d3b6, 0xe2a36f, 0xc98b5c, 0x8d5a3b, 0x5a3a24, 0xf5f1e6, 0x7ad04a, 0x6ac8ff, 0xff9fb0, 0xff8a1a, 0xb8bcc8, 0x8e44ad];
@@ -347,7 +350,9 @@ class App {
       history.replaceState(null, "", location.pathname + location.search);
       this.openLink(pc[1].replace(/-/g, "").toUpperCase());
     }
+    this.checkGhostHash();
     this.syncAccount();
+    this.fetchBeaten();
     this.startPresence();
     this.report({ t: "hello", device: isTouch ? (Math.min(screen.width, screen.height) >= 700 ? "tablet" : "phone") : "desktop", browser: browserName() });
   }
@@ -484,6 +489,7 @@ class App {
     if (this.screen && push && this.screen !== id && !$("#" + this.screen).classList.contains("overlay")) this.history.push(this.screen);
     for (const s of $$(".screen")) s.classList.toggle("active", s.id === id);
     this.screen = id;
+    window.ckCrumb?.("screen " + id);
     if (this.showroom) {
       this.showroom.editing = id === "custom";
       if (id !== "custom") (this.showroom.zoom = 0), (this.showroom.spinRate = 0.7);
@@ -896,8 +902,36 @@ class App {
     $("#race-chat").addEventListener("submit", (e) => {
       e.preventDefault();
       const text = rc.value.trim();
-      if (text && this.net) this.net.send({ t: "chat", text });
+      if (text && this.session?.online && this.net) this.net.send({ t: "chat", text });
+      if (text && this.caster?.watchers.length) this.presence?.send({ t: "wchat", text }); // the people watching us
       this.closeRaceChat();
+    });
+    // Watching someone's race: message them (and everyone else watching)
+    $("#watch-chat").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const inp = $("#watch-chat-input");
+      const text = inp.value.trim();
+      const w = this.watch;
+      if (!text || !w) return;
+      if (w.state === "offline" || w.state === "gone") return this.toast(`${w.name} isn't playing right now.`, true);
+      if (this.presence?.send({ t: "wchat", to: w.uid, text })) inp.value = "";
+      else this.toast("Not connected to the server.", true);
+    });
+    $("#watch-reacts").append(
+      ...REACTIONS.map((r, i) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "react-btn";
+        b.dataset.action = "react";
+        b.dataset.e = i;
+        b.textContent = r;
+        b.title = `${r} (${i + 1})`;
+        return b;
+      })
+    );
+    $("#watch-chat-input").addEventListener("keydown", (e) => {
+      e.stopPropagation(); // typing isn't Esc-to-stop or ←/→ to switch racers
+      if (e.key === "Escape") e.target.blur();
     });
     rc.addEventListener("keydown", (e) => {
       e.stopPropagation();
@@ -915,6 +949,9 @@ class App {
     $("#pause-btn").addEventListener("click", () => this.pause());
     document.addEventListener("visibilitychange", () => {
       if (document.hidden && this.session && !this.session.online && !this.session.paused && this.session.sim.phase !== "done") this.pause();
+      // Back after a while (a phone keeps the tab for days): anyone pass us meanwhile?
+      if (document.hidden) this.hiddenAt = Date.now();
+      else if (Date.now() - (this.hiddenAt || Date.now()) > 5 * 60000) this.fetchBeaten();
     });
   }
 
@@ -931,7 +968,7 @@ class App {
     }
     if (this.session && !this.screen) {
       if (input.isKey("pause", code)) this.pause();
-      else if (this.session.online && (code === "Enter" || code === "NumpadEnter" || code === "KeyT")) setTimeout(() => this.openRaceChat(), 0);
+      else if ((this.session.online || this.caster?.watchers.length) && (code === "Enter" || code === "NumpadEnter" || code === "KeyT")) setTimeout(() => this.openRaceChat(), 0);
       else if (this.session.online && code === "KeyV") this.action("hud-mic");
       else if (code === "KeyD") this.session.toggleSpecial();
       return;
@@ -939,6 +976,8 @@ class App {
     if (this.watch && !this.screen) {
       if (code === "Escape" || code === "cancel" || input.isKey("pause", code)) this.stopWatching();
       else if (code === "ArrowRight" || code === "ArrowLeft") this.watchNext(code === "ArrowLeft" ? -1 : 1);
+      else if (code === "Enter" || code === "NumpadEnter" || code === "KeyT") setTimeout(() => $("#watch-chat-input").focus({ preventScroll: true }), 0);
+      else if (/^(Digit|Numpad)[1-6]$/.test(code)) this.sendReaction(+code.slice(-1) - 1);
       return;
     }
     if (!this.screen) return;
@@ -947,6 +986,9 @@ class App {
       if (this.screen === "menu") return;
       if (this.screen === "whatsnew") return this.action("whatsnew-close");
       if (this.screen === "challenge") return this.answerChallenge(false);
+      if (this.screen === "beaten") return this.action("beaten-close");
+      if (this.screen === "gchal") return this.action("gchal-no");
+      if (this.screen === "gchal-share") return this.action("gchal-share-close");
       if (this.screen === "sharecard") return this.action("share-close");
       if (this.screen === "tutorial-done") return this.action("tut-practice");
       return this.back();
@@ -1143,11 +1185,60 @@ class App {
       case "watch-next":
         this.watchNext(1);
         break;
+      case "react":
+        this.sendReaction(+el.dataset.e);
+        break;
       case "challenge-yes":
         this.answerChallenge(true);
         break;
       case "challenge-no":
         this.answerChallenge(false);
+        break;
+      case "gchal-make":
+        this.makeChallenge();
+        break;
+      case "gchal-share-close":
+        audio.play("back");
+        this.show(this.gchalShareFrom || "menu", false);
+        break;
+      case "gchal-copy":
+        audio.play("select");
+        navigator.clipboard?.writeText($("#gchal-link").value).then(
+          () => this.toast("🔗 Link copied!"),
+          () => $("#gchal-link").select()
+        ) ?? $("#gchal-link").select();
+        break;
+      case "gchal-wa":
+        this.openWhatsApp(this.gchalText);
+        break;
+      case "gchal-go":
+        audio.play("select");
+        navigator.share?.({ text: this.gchalText }).catch(() => {});
+        break;
+      case "gchal-no":
+        audio.play("back");
+        this.ghostChallenge = null;
+        this.show(this.gchalFrom || "title", false);
+        break;
+      case "gchal-yes":
+        this.raceGhostChallenge();
+        break;
+      case "beaten-close":
+        audio.play("select");
+        this.show(this.beatenFrom || "title", false);
+        break;
+      case "beaten-board": {
+        const n = this.beatenList[0];
+        this.show(this.beatenFrom || "title", false);
+        this.action("records", { dataset: { track: n.track, board: n.board || "runs" } });
+        break;
+      }
+      case "beaten-race":
+        audio.unlock();
+        audio.play("select");
+        this.show(this.beatenFrom || "title", false);
+        this.flow = "tt";
+        this.startTimeTrial(Number(el.dataset.track));
         break;
       case "notify-toggle":
         this.toggleNotify();
@@ -1432,6 +1523,7 @@ class App {
     document.activeElement?.blur?.(); // Space/Enter must not re-click a menu button mid-race
     this.session = new RaceSession(this, cfg);
     this.session.resize(this.width, this.height);
+    this.renderSocial();
     this.presence?.update(); // tell the others what we're racing right away
   }
 
@@ -1529,7 +1621,7 @@ class App {
       $("#results-title").textContent = isBest ? "New daily best!" : "Daily Challenge";
       this.shareInfo = { title: isBest ? "NEW DAILY BEST!" : "DAILY CHALLENGE", big: fmtTime(me.finishTime), sub: `${def.name} · Daily Challenge · ${cfg.cc}cc`, char: me.char, track: cfg.track };
       $("#results-sub").textContent = `${def.name} · ${cfg.cc}cc · ${fmtTime(me.finishTime)}${prev ? ` · best today ${fmtTime(Math.min(prev, me.finishTime))}` : ""}`;
-      this.hud.lapTimes.forEach((t, i) => this.resultRow(table, { pos: "L" + (i + 1), char: me.char, look: me.look, name: `Lap ${i + 1}`, time: fmtTime(t), me: true }, i));
+      this.hud.lapTimes.forEach((t, i) => this.resultRow(table, { pos: "L" + (i + 1), char: me.char, look: me.look, name: `Lap ${i + 1}`, pts: fmtTime(t), me: true }, i));
       btn("Main menu", "menu");
       const boardBtn = btn("📅 Today's board", "daily");
       btn("📸 Share", "share");
@@ -1537,26 +1629,45 @@ class App {
       this.submitDaily(cfg, me, [...this.hud.lapTimes], boardBtn, isBest);
     } else if (cfg.mode === "tt") {
       const me = session.me;
+      const laps = [...this.hud.lapTimes];
       const bests = store.get("best", {});
       const prev = bests[cfg.track];
       const isBest = !prev || me.finishTime < prev;
       if (isBest) {
         bests[cfg.track] = me.finishTime;
         store.set("best", bests);
-        store.set("ghost_" + cfg.track, { time: me.finishTime, char: me.char, kart: me.kartType, look: me.look, frames: session.ghostFrames });
+        store.set("ghost_" + cfg.track, { time: me.finishTime, char: me.char, kart: me.kartType, look: me.look, frames: session.ghostFrames, laps });
       }
-      $("#results-title").textContent = isBest ? "New record!" : "Time Trial";
-      this.shareInfo = { title: isBest ? "NEW RECORD!" : "TIME TRIAL", big: fmtTime(me.finishTime), sub: `${def.name} · best lap ${fmtTime(Math.min(...this.hud.lapTimes))}`, char: me.char, track: cfg.track };
-      const rg = cfg.recordGhost;
-      $("#results-sub").textContent = `${def.name} · ${fmtTime(me.finishTime)}${prev ? ` · best ${fmtTime(Math.min(prev, me.finishTime))}` : ""}${rg ? ` · #${rg.rank} ghost ${fmtTime(rg.time)}` : ""}`;
-      if (rg && me.finishTime < rg.time) this.toast(`👻 You beat ${rg.name}'s ghost!`, false, 4000);
-      this.hud.lapTimes.forEach((t, i) => this.resultRow(table, { pos: "L" + (i + 1), char: me.char, look: me.look, name: `Lap ${i + 1}`, time: fmtTime(t), me: true }, i));
+      // The run a ghost challenge link sends: our best (if it has its lap times) or this one
+      const saved = store.get("ghost_" + cfg.track, null);
+      this.challengeRun = saved?.laps?.length === 3 && saved.time <= me.finishTime ? { ...saved, track: cfg.track } : { track: cfg.track, time: me.finishTime, char: me.char, kart: me.kartType, look: me.look, frames: session.ghostFrames, laps };
+      const ch = cfg.challenge;
+      if (ch) {
+        const won = me.finishTime < ch.time;
+        const gap = Math.abs(me.finishTime - ch.time).toFixed(3);
+        $("#results-title").textContent = won ? `You beat ${ch.name}!` : `${ch.name} wins this time`;
+        $("#results-sub").textContent = `${def.name} · ${fmtTime(me.finishTime)} · ${gap}s ${won ? "ahead of" : "behind"} ${ch.name}'s ghost`;
+        this.shareInfo = { title: won ? "GHOST BEATEN!" : "GHOST CHALLENGE", big: fmtTime(me.finishTime), sub: `${def.name} · vs ${ch.name} ${fmtTime(ch.time)}`, char: me.char, track: cfg.track, place: won ? 1 : 2 };
+      } else {
+        $("#results-title").textContent = isBest ? "New record!" : "Time Trial";
+        this.shareInfo = { title: isBest ? "NEW RECORD!" : "TIME TRIAL", big: fmtTime(me.finishTime), sub: `${def.name} · best lap ${fmtTime(Math.min(...laps))}`, char: me.char, track: cfg.track };
+        const rg = cfg.recordGhost;
+        $("#results-sub").textContent = `${def.name} · ${fmtTime(me.finishTime)}${prev ? ` · best ${fmtTime(Math.min(prev, me.finishTime))}` : ""}${rg ? ` · #${rg.rank} ghost ${fmtTime(rg.time)}` : ""}`;
+        if (rg && me.finishTime < rg.time) this.toast(`👻 You beat ${rg.name}'s ghost!`, false, 4000);
+      }
+      laps.forEach((t, i) => this.resultRow(table, { pos: "L" + (i + 1), char: me.char, look: me.look, name: `Lap ${i + 1}`, pts: fmtTime(t), me: true }, i));
+      if (ch) {
+        this.resultRow(table, { pos: "⏱️", char: me.char, look: me.look, name: "You", pts: fmtTime(me.finishTime), me: true }, laps.length);
+        this.resultRow(table, { pos: "👻", char: ch.char, look: ch.look, name: `${ch.name}'s ghost`, pts: fmtTime(ch.time) }, laps.length + 1);
+      }
       btn("Main menu", "menu");
       const recBtn = btn("🏆 Best times", "records");
       btn("📸 Share", "share");
+      btn(ch ? "👻 Challenge back" : "👻 Challenge a friend", "gchal-make");
       recBtn.dataset.track = cfg.track;
       btn("Try again", "retry", true);
-      this.submitLaps(cfg, me, [...this.hud.lapTimes], recBtn, { time: me.finishTime, frames: session.ghostFrames });
+      this.submitLaps(cfg, me, laps, recBtn, { time: me.finishTime, frames: session.ghostFrames });
+      if (ch) this.submitChallengeTry(ch, me, laps);
     } else if (cfg.mode === "gp") {
       const gp = this.gp;
       rows.forEach((r, i) => gp.points.set(r.id, gp.points.get(r.id) + (POINTS[i] || 0)));
@@ -1946,6 +2057,8 @@ class App {
     setInterval(() => {
       this.presence.update();
       this.checkChallenge();
+      this.checkGhostChallenge();
+      this.checkBeaten();
     }, 3000);
     // A tapped challenge notification lands here with #room=CODE while the game is open.
     window.addEventListener("hashchange", () => {
@@ -1956,6 +2069,7 @@ class App {
         history.replaceState(null, "", location.pathname + location.search);
         this.openLink(pc[1].replace(/-/g, "").toUpperCase());
       }
+      this.checkGhostHash();
     });
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=1").catch(() => {});
   }
@@ -2007,6 +2121,10 @@ class App {
       if (this.watch?.uid === m.uid && !m.online) this.watch.state = "offline";
     } else if (t === "cast") {
       this.onCast(m);
+    } else if (t === "wchat") {
+      this.onWatchChat(m);
+    } else if (t === "wreact") {
+      this.onReaction(m);
     } else if (t === "challenge") {
       this.incoming = { id: m.id, from: m.from, code: m.code, at: Date.now(), shown: false };
       audio.play("itemGet");
@@ -2185,6 +2303,165 @@ class App {
     $("#challenge-portrait").src = this.portraitFor(c.from.char, c.from.look) || "";
     $("#challenge-text").textContent = `${c.from.name} challenges you to a race!`;
     this.show("challenge", false);
+  }
+
+  // ------------------------------------------------------------------ beaten records
+  // Someone passed us on a Time Trial board since we last played (the server hands each note
+  // over once). Shown on the title or main menu, never over a race or another popup.
+  fetchBeaten() {
+    serverRequest({ t: "beaten", pid: this.pid })
+      .then((m) => {
+        if (!m.list?.length) return;
+        this.beaten = m.list;
+        this.checkBeaten();
+      })
+      .catch(() => {});
+  }
+
+  checkBeaten() {
+    if (!this.beaten || this.incoming || (this.screen !== "title" && this.screen !== "menu")) return;
+    const list = (this.beatenList = this.beaten);
+    this.beaten = null;
+    this.beatenFrom = this.screen;
+    const records = list.filter((n) => n.kind !== "ghost").length;
+    $("#beaten-title").textContent = !records ? "👻 Ghost challenge news" : records > 1 ? "😱 Records beaten!" : "😱 Record beaten!";
+    const box = $("#beaten-list");
+    box.innerHTML = "";
+    for (const n of list) {
+      const names = n.by.map((b) => b.name);
+      const who = names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names.at(-1) : names[0];
+      const what = n.board === "laps" ? "lap" : "3-lap";
+      const where = TRACKS[n.track]?.name ?? "?";
+      const row = document.createElement("div");
+      row.className = "rr";
+      const img = document.createElement("img");
+      img.src = this.portraitFor(n.by[0].char, n.by[0].look);
+      img.alt = "";
+      const nm = document.createElement("span");
+      nm.className = "nm";
+      const sub = document.createElement("small");
+      if (n.kind === "ghost") {
+        // Friends who raced the ghost challenge we sent
+        const beat = n.by.filter((b) => b.time < n.mine).length;
+        nm.textContent = names.length > 1 ? `${who} raced your ghost on ${where}` : `${who} ${beat ? "beat" : "raced"} your ghost on ${where}${beat ? "!" : ""}`;
+        sub.textContent = [...n.by.map((b) => `${b.time < n.mine ? "🏆 " : ""}${b.name} ${fmtTime(b.time)}`), `You ${fmtTime(n.mine)}`].join(" · ");
+      } else {
+        nm.textContent = `${who} ${n.was === 1 ? `took your ${what} record` : `passed your ${what} time`} on ${where}`;
+        sub.textContent =
+          `#${n.was} → ${n.rank ? "#" + n.rank : "off the top 10"}` +
+          (n.top ? ` · 🏆 ${fmtTime(n.top.time)} ${n.top.name}` : "") +
+          (n.mine != null ? ` · You ${fmtTime(n.mine)}` : "");
+      }
+      nm.append(sub);
+      const go = document.createElement("button");
+      go.className = "btn";
+      go.dataset.action = "beaten-race";
+      go.dataset.track = n.track;
+      go.textContent = "🏁 Race";
+      row.append(img, nm, go);
+      box.append(row);
+    }
+    audio.play("itemGet");
+    this.show("beaten", false);
+  }
+
+  // ------------------------------------------------------------------ ghost challenges
+  // Send one of our Time Trial runs as a link (#ghost=CODE); whoever opens it races our ghost.
+  makeChallenge() {
+    const run = this.challengeRun;
+    if (!run) return;
+    audio.play("select");
+    const s = this.settings;
+    this.toast("👻 Getting your challenge ready…", false, 1500);
+    serverRequest({ t: "gchal-new", pid: this.pid, track: run.track, laps: run.laps, name: s.name || CHARACTERS[run.char].name, char: run.char, kart: run.kart, look: run.look || undefined, ghost: { time: run.time, frames: run.frames } }, 12000)
+      .then((m) => {
+        if (!m.ok) return this.toast(m.error === "slow" ? "That's a lot of challenges for one day! Try again tomorrow." : "This run can't be sent as a challenge, sorry.", true, 4000);
+        const where = TRACKS[run.track].name;
+        const link = `${location.origin}${location.pathname}#ghost=${m.code}`;
+        this.gchalText = `👻 Beat my ghost! I did ${where} in ${fmtTime(run.time)} on Chamo Kart. Think you're faster? ${link}`;
+        $("#gchal-share-text").textContent = `Your ${fmtTime(run.time)} on ${where} is ready. Whoever opens this link races your ghost, and you'll see how they did next time you play.`;
+        $("#gchal-link").value = link;
+        $("#gchal-go").style.display = navigator.share ? "" : "none";
+        if (this.screen !== "gchal-share") this.gchalShareFrom = this.screen;
+        this.show("gchal-share", false);
+      })
+      .catch(() => this.toast("Can't reach the server right now. Try again in a bit.", true));
+  }
+
+  // A #ghost=CODE link (on load, or tapped while the game is open)
+  checkGhostHash() {
+    const m = location.hash.match(/ghost=([0-9A-Za-z]{7})\b/);
+    if (!m) return;
+    history.replaceState(null, "", location.pathname + location.search);
+    serverRequest({ t: "gchal-get", pid: this.pid, code: m[1].toUpperCase() }, 12000)
+      .then((c) => {
+        if (!c.ok) return this.toast("👻 That ghost challenge isn't around anymore.", true, 4000);
+        this.ghostChallenge = c;
+        if (this.session && !this.screen) this.toast(`👻 ${c.name}'s ghost challenge is waiting for you after this race.`, false, 5000);
+        this.checkGhostChallenge();
+      })
+      .catch(() => this.toast("Can't reach the server to load that challenge. Try the link again in a bit.", true, 5000));
+  }
+
+  // Shown once we're in the menus (not mid-race, not over another popup)
+  checkGhostChallenge() {
+    const c = this.ghostChallenge;
+    if (!c || c.shown || this.session || this.watch || !this.screen || this.screen === "loading") return;
+    if (this.screen !== "whatsnew" && $("#" + this.screen).classList.contains("overlay")) return;
+    c.shown = true;
+    this.gchalFrom = this.screen;
+    $("#gchal-portrait").src = this.portraitFor(c.char, c.look) || "";
+    const where = TRACKS[c.track].name;
+    $("#gchal-text").textContent = c.mine ? `Your ghost challenge: ${fmtTime(c.time)} on ${where}` : `${c.name} challenges you to beat ${fmtTime(c.time)} on ${where}!`;
+    const box = $("#gchal-tries");
+    box.innerHTML = "";
+    c.tries.slice(0, 5).forEach((e, i) => this.resultRow(box, { pos: i + 1, char: e.char, look: e.look, name: e.name, pts: fmtTime(e.time), me: e.mine }, i));
+    box.style.display = c.tries.length ? "" : "none";
+    const s = this.settings;
+    $("#gchal-name").value = s.name;
+    $("#gchal-name").placeholder = CHARACTERS[s.char].name;
+    $(".gchal-name").style.display = c.mine ? "none" : "";
+    audio.play("itemGet");
+    this.show("gchal", false);
+  }
+
+  raceGhostChallenge() {
+    const c = this.ghostChallenge;
+    if (!c) return;
+    audio.unlock();
+    audio.play("select");
+    this.ghostChallenge = null;
+    // They're about to show up on the challenge's list (and to its maker): use their name
+    const name = $("#gchal-name").value.trim().slice(0, 14);
+    if (!c.mine && name !== this.settings.name) {
+      this.settings.name = name;
+      this.save();
+      for (const el of [$("#name-input"), $("#set-name"), ...$$(".board-name")]) if (el) el.value = name;
+    }
+    this.flow = "tt";
+    const s = this.settings;
+    this.showTTRecords(c.track);
+    this.startRace({
+      mode: "tt",
+      track: c.track,
+      laps: 3,
+      cc: 150,
+      items: false,
+      grid: [{ id: "you", name: s.name || CHARACTERS[s.char].name, char: s.char, kart: s.kart, look: this.lookFor(s.char), human: true, local: true }],
+      ghost: null,
+      ownGhost: false,
+      recordGhost: { char: c.char, kart: c.kart, look: c.look, frames: c.frames, time: c.time, name: c.name, label: `👻 ${c.name}` },
+      challenge: { code: c.code, name: c.name, char: c.char, look: c.look, time: c.time },
+    });
+  }
+
+  submitChallengeTry(ch, me, laps) {
+    const s = this.settings;
+    serverRequest({ t: "gchal-try", pid: this.pid, code: ch.code, laps, time: me.finishTime, name: s.name || CHARACTERS[me.char].name, char: me.char, look: me.look || undefined })
+      .then((m) => {
+        if (m.ok && m.best && m.count > 1) this.toast(`👻 You're #${m.rank} of ${m.count} on ${ch.name}'s challenge!`, false, 4000);
+      })
+      .catch(() => {});
   }
 
   answerChallenge(accept) {
@@ -2487,6 +2764,8 @@ class App {
     document.activeElement?.blur?.();
     document.body.classList.add("watching");
     $("#watch-portrait").src = this.portraitFor(p.char, p.look) || "";
+    $("#watch-feed").innerHTML = "";
+    $("#watch-chat-input").placeholder = `💬 Send ${p.name} a message…`;
     this.renderWatch();
     this.presence.send({ t: "watch", to: uid });
     this.presence.update();
@@ -2499,6 +2778,10 @@ class App {
     this.watch = null;
     this.endSpectate();
     document.body.classList.remove("watching");
+    $("#reactions").innerHTML = "";
+    const inp = $("#watch-chat-input");
+    inp.value = "";
+    if (document.activeElement === inp) inp.blur();
     this.presence?.update();
     if (!to) return;
     audio.play("back");
@@ -2582,6 +2865,81 @@ class App {
     const el = $("#hud-watchers");
     el.textContent = names.length ? `👀 ${names.length} watching` : "";
     el.title = names.join(", ");
+    this.renderSocial();
+  }
+
+  // Chat around a live race: on our own race's HUD, or under the race we're watching
+  onWatchChat(m) {
+    const me = this.presence?.uid;
+    const mine = m.uid === me;
+    if (m.racer === me) {
+      if (this.session && !this.screen && $("#hud-social").classList.contains("on")) {
+        // Online, our own line already comes back through the room chat
+        if (!(mine && this.session.online)) this.feed({ name: mine ? m.name : `👀 ${m.name}`, text: m.text });
+        if (!mine) audio.play("chat", 0.6);
+      } else if (!mine) {
+        this.toast(`💬 ${m.name}: ${m.text}`, false, 6000);
+        audio.play("chat", 0.6);
+      }
+    } else if (this.watch && m.racer === this.watch.uid) {
+      const feed = $("#watch-feed");
+      const d = document.createElement("div");
+      const racer = m.uid === m.racer;
+      if (racer) d.className = "racer";
+      const b = document.createElement("b");
+      b.textContent = `${racer ? "🏁 " : ""}${m.name}: `;
+      d.append(b, m.text);
+      feed.append(d);
+      while (feed.children.length > 6) feed.firstChild.remove();
+      setTimeout(() => d.classList.add("fade"), 20000);
+      setTimeout(() => d.remove(), 20700);
+      if (!mine) audio.play("chat", 0.6);
+    }
+  }
+
+  // A watcher's tap on 👏 🔥 😂…: it floats up the racer's screen (and every watcher's)
+  sendReaction(i) {
+    const w = this.watch;
+    if (!w || !REACTIONS[i] || Date.now() - (this.lastReact || 0) < 200) return;
+    if (w.state === "offline" || w.state === "gone") return this.toast(`${w.name} isn't playing right now.`, true);
+    this.lastReact = Date.now();
+    this.presence?.send({ t: "wreact", to: w.uid, e: i });
+    const b = $$(".react-btn")[i];
+    b.classList.add("pop");
+    setTimeout(() => b.classList.remove("pop"), 120);
+  }
+
+  onReaction(m) {
+    const me = this.presence?.uid;
+    if (m.racer !== me && m.racer !== this.watch?.uid) return;
+    const layer = $("#reactions");
+    if (layer.children.length > 24) return; // a flood of taps: let some float away first
+    const d = document.createElement("div");
+    d.className = "react";
+    // From the right-hand side, drifting a little either way as it rises
+    d.style.left = `${58 + Math.random() * 30}%`;
+    d.style.setProperty("--dx", `${Math.round((Math.random() - 0.5) * 120)}px`);
+    const i = document.createElement("i");
+    i.textContent = REACTIONS[m.e] || "👏";
+    const n = document.createElement("small");
+    n.textContent = m.uid === me ? "You" : m.name;
+    d.append(i, n);
+    layer.append(d);
+    d.addEventListener("animationend", () => d.remove());
+    setTimeout(() => d.remove(), 3500);
+    if (m.racer === me && m.uid !== me) audio.play("menu", 0.35);
+  }
+
+  // The race HUD's chat corner: online races, or a race someone is watching (just the chat then)
+  renderSocial() {
+    const s = this.session;
+    const online = !!s?.online;
+    const on = !!s && (online || !!this.caster?.watchers.length);
+    const el = $("#hud-social");
+    el.classList.toggle("on", on);
+    el.classList.toggle("watch-only", !online);
+    if (on && !online) $("#hud-social-hint").textContent = "Enter: chat with your watchers";
+    if (!on) this.closeRaceChat();
   }
 
   // ------------------------------------------------------------------ online
@@ -2889,7 +3247,7 @@ class App {
   }
 
   openRaceChat() {
-    if (!this.session?.online || this.screen) return;
+    if (!$("#hud-social").classList.contains("on") || this.screen) return;
     const f = $("#race-chat");
     f.classList.add("open");
     $("#race-chat-input").focus({ preventScroll: true });
@@ -3027,7 +3385,27 @@ class App {
 
 const app = new App();
 window.chamo = app;
+// What the player was doing, sent with crash reports (js/crash.js)
+window.ckCrashContext = () => {
+  const cfg = app.session?.cfg;
+  const s = app.settings;
+  return {
+    screen: app.screen || "",
+    mode: cfg ? (cfg.daily ? "daily" : cfg.mode) : "",
+    track: cfg ? TRACKS[cfg.track]?.name || "" : "",
+    online: !!app.room,
+    watching: !!app.spectate,
+    char: CHARACTERS[s.char]?.name || "",
+    kart: KARTS[s.kart]?.name || "",
+    cc: cfg?.cc || s.cc,
+    device: isTouch ? (Math.min(screen.width, screen.height) >= 700 ? "tablet" : "phone") : "desktop",
+    browser: browserName(),
+    quality: s.quality,
+    controls: s.touch ? "touch " + s.steer : "keyboard",
+  };
+};
 app.boot().catch((err) => {
   console.error(err);
+  window.ckReport?.(err);
   $("#load-msg").textContent = "Oops! Something went wrong starting the game: " + err.message;
 });

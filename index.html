@@ -34,7 +34,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=32" />
+  <link rel="stylesheet" href="css/style.css?v=36" />
+  <script src="js/crash.js?v=1"></script>
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
   </script>
@@ -281,7 +282,7 @@
             <tr><td><kbd>Space</kbd><kbd>Shift</kbd></td><td>Hop &amp; drift</td></tr>
             <tr><td><kbd>E</kbd><kbd>X</kbd></td><td>Use item. Hold it to drag a banana or red shell behind you as a shield, let go to use it (hold <kbd>↓</kbd> to throw backwards)</td></tr>
             <tr><td><kbd>C</kbd></td><td>Look behind</td></tr>
-            <tr><td><kbd>D</kbd></td><td>agenteintermediario: open / close the CX-9's doors. Bumblebee: transform into a robot and back. (Steer with <kbd>←</kbd><kbd>→</kbd>)</td></tr>
+            <tr><td><kbd>D</kbd></td><td>Bumblebee: transform into a robot and back. (Steer with <kbd>←</kbd><kbd>→</kbd>)</td></tr>
             <tr><td><kbd>Enter</kbd><kbd>T</kbd></td><td>Chat (online)</td></tr>
             <tr><td><kbd>V</kbd></td><td>Join voice / mute mic (online)</td></tr>
             <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
@@ -412,6 +413,49 @@
     </div>
   </section>
 
+  <!-- A friend's ghost challenge link (#ghost=CODE) -->
+  <section id="gchal" class="screen overlay">
+    <div class="panel small-panel gchal-panel">
+      <h2 class="screen-title">👻 Ghost challenge!</h2>
+      <img id="gchal-portrait" class="challenge-portrait" alt="" />
+      <p id="gchal-text" class="challenge-text"></p>
+      <div id="gchal-tries" class="players-list gchal-tries"></div>
+      <label class="field gchal-name"><span>Your name</span><input id="gchal-name" maxlength="14" autocomplete="off" spellcheck="false" /></label>
+      <div class="row end">
+        <button class="btn" data-action="gchal-no">Not now</button>
+        <button class="btn primary" data-action="gchal-yes">🏁 Race!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Our run, ready to send as a ghost challenge -->
+  <section id="gchal-share" class="screen overlay">
+    <div class="panel small-panel gchal-panel">
+      <h2 class="screen-title">👻 Challenge a friend</h2>
+      <p id="gchal-share-text" class="gchal-share-text"></p>
+      <input id="gchal-link" class="text-input gchal-link" readonly />
+      <div class="row end">
+        <button class="btn" data-action="gchal-share-close">Close</button>
+        <button class="btn" data-action="gchal-copy">🔗 Copy link</button>
+        <button class="btn whatsapp" data-action="gchal-wa">WhatsApp</button>
+        <button class="btn primary" id="gchal-go" data-action="gchal-go">📲 Share</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Someone passed you on a Time Trial board while you were away -->
+  <section id="beaten" class="screen overlay">
+    <div class="panel small-panel beaten-panel">
+      <h2 class="screen-title" id="beaten-title">😱 Record beaten!</h2>
+      <p class="muted beaten-note">While you were away:</p>
+      <div id="beaten-list" class="players-list beaten-list"></div>
+      <div class="row end">
+        <button class="btn" data-action="beaten-board">🏆 Best times</button>
+        <button class="btn primary" data-action="beaten-close">OK</button>
+      </div>
+    </div>
+  </section>
+
   <!-- Daily challenge -->
   <section id="daily" class="screen">
     <div class="panel records-panel daily-panel">
@@ -476,7 +520,15 @@
       <button class="btn small" data-action="watch-stop">✕ Stop</button>
     </div>
     <div id="watch-msg" class="watch-msg"></div>
+    <div class="watch-chat">
+      <div id="watch-feed" class="hud-feed"></div>
+      <div id="watch-reacts" class="watch-reacts"></div>
+      <form id="watch-chat" class="watch-chat-form"><input id="watch-chat-input" maxlength="120" placeholder="💬 Send a message…" autocomplete="off" enterkeyhint="send" /><button class="btn small">Send</button></form>
+    </div>
   </div>
+
+  <!-- Watchers' quick reactions floating up the screen (the racer's and the watchers') -->
+  <div id="reactions" class="reactions" aria-hidden="true"></div>
 
   <section id="hud" class="hud">
     <div id="hud-watchers" class="hud-watchers"></div>
@@ -576,6 +628,6 @@
 
   <div id="toasts" class="toasts"></div>
 
-  <script type="module" src="js/main.js?v=46"></script>
+  <script type="module" src="js/main.js?v=55"></script>
 </body>
 </html>

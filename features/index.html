@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#e23b3b" />
+  <title>Chamo Kart Ideas</title>
+  <meta name="description" content="Suggest a feature for Chamo Kart and vote for the ones you want. When two racers back an idea, it gets built." />
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css?v=32" />
+  <style>
+    /* The game locks the page to one screen; this page scrolls. */
+    html, body { height: auto; min-height: 100%; user-select: text; -webkit-user-select: text; touch-action: auto; overscroll-behavior: auto; }
+    html { overflow-x: hidden; overflow-y: auto; background: #4a0f3a radial-gradient(circle at 50% 0%, #ff6b4a, #b8203a 45%, #4a0f3a 100%) no-repeat fixed; }
+    body { overflow: visible; background: transparent; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 40px max(16px, env(safe-area-inset-left)); }
+    [hidden] { display: none !important; }
+    .ft-wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+    .ft-head { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+    .ft-head .logo { text-decoration: none; }
+    .ft-head .logo.small .l1 { font-size: 40px; }
+    .ft-head .logo.small .l2 { font-size: 32px; }
+    .ft-title { flex: 1; min-width: 200px; }
+    .ft-title h1 { font-family: var(--display); font-weight: 400; font-size: 44px; margin: 0; color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; letter-spacing: 1px; transform: rotate(-2deg); }
+    .ft-title p { margin: 4px 0 0; color: #fff; font-weight: 800; opacity: 0.95; }
+    .ft-panel { width: 100%; max-height: none; overflow: visible; }
+    .ft-panel h2 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 0; letter-spacing: 0.5px; }
+    .ft-how { margin: 0; padding-left: 20px; font-weight: 700; display: flex; flex-direction: column; gap: 4px; }
+    .ft-form { display: flex; flex-direction: column; gap: 10px; }
+    .ft-form input, .ft-form textarea { width: 100%; font: 700 16px var(--body); padding: 10px 12px; border-radius: 14px; border: 3px solid var(--ink); background: #fff; color: var(--ink); }
+    .ft-form textarea { resize: vertical; min-height: 100px; }
+    .ft-form input:focus, .ft-form textarea:focus { outline: none; box-shadow: 0 0 0 4px var(--yellow); }
+    .ft-count { font-size: 12px; font-weight: 800; color: var(--muted); text-align: right; margin-top: -6px; }
+    .ft-note { background: #fff6cc; border-radius: 12px; padding: 10px 12px; font-weight: 800; margin: 0; }
+    .ft-tools { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .idea { border: 3px solid var(--ink); border-radius: 16px; padding: 12px 14px; background: #fff; display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; align-items: start; }
+    .idea h3 { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
+    .idea .txt { grid-column: 1; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 700; font-size: 15px; }
+    .idea .by { grid-column: 1; font-size: 13px; font-weight: 800; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .vote { grid-column: 2; grid-row: 1 / span 3; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 64px; padding: 8px 10px; font-size: 22px; line-height: 1; }
+    .vote b { font-family: var(--display); font-weight: 400; font-size: 22px; }
+    .vote small { font-size: 11px; font-weight: 900; }
+    .vote.on { background: var(--yellow); }
+    .chip { font-size: 12px; font-weight: 900; padding: 2px 9px; border-radius: 9px; white-space: nowrap; background: #efe9fb; color: var(--ink); }
+    .chip.building { background: var(--purple); color: #fff; }
+    .chip.review { background: var(--blue); color: #fff; }
+    .chip.live { background: #1f9d55; color: #fff; }
+    .chip.declined { background: #e2dcef; color: var(--muted); }
+    .ft-list { display: flex; flex-direction: column; gap: 10px; }
+    .ft-empty { color: var(--muted); font-weight: 800; margin: 0; }
+    .ft-toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: #fff; font-weight: 800; padding: 10px 16px; border-radius: 14px; border: 3px solid #fff; box-shadow: var(--shadow); opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); text-align: center; }
+    .ft-toast.on { opacity: 1; }
+    @media (max-width: 600px) {
+      .ft-title h1 { font-size: 34px; }
+      .idea { grid-template-columns: 1fr; }
+      .vote { grid-column: 1; grid-row: auto; flex-direction: row; justify-self: start; gap: 8px; min-width: 0; font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ft-wrap">
+    <header class="ft-head">
+      <a class="logo small" href="../" title="Play Chamo Kart"><span class="l1">CHAMO</span><span class="l2">KART</span></a>
+      <div class="ft-title">
+        <h1>Ideas</h1>
+        <p>What should Chamo Kart have next? You decide.</p>
+      </div>
+    </header>
+
+    <section class="panel ft-panel">
+      <h2>💡 Suggest a feature</h2>
+      <ol class="ft-how">
+        <li>Post your idea, or vote for someone else's.</li>
+        <li>When <b id="needed">2</b> different racers back an idea, it gets built.</li>
+        <li>Once it's been checked, it shows up in the game.</li>
+      </ol>
+      <p class="ft-note" id="need-play" hidden>Race at least once on this device first, then come back to post ideas and vote. <a href="../">Play Chamo Kart →</a></p>
+      <form class="ft-form" id="form" hidden>
+        <input id="idea-title" maxlength="80" placeholder="Your idea in a few words, like “A snow track”" autocomplete="off" required />
+        <textarea id="idea-text" maxlength="1000" placeholder="Tell us more: what would it look like, how would it play?"></textarea>
+        <div class="ft-count" id="count">0 / 1000</div>
+        <div class="row end"><button class="btn primary" id="post" type="submit">💡 Post idea</button></div>
+      </form>
+    </section>
+
+    <section class="panel ft-panel">
+      <div class="ft-tools">
+        <h2>Ideas</h2>
+        <div class="seg" id="sort"><button data-s="top" class="on">Most votes</button><button data-s="new">Newest</button><button data-s="done">Built</button></div>
+      </div>
+      <div class="ft-list" id="list"><p class="ft-empty">Loading…</p></div>
+    </section>
+  </div>
+  <div class="ft-toast" id="toast"></div>
+
+  <script type="module">
+    const NEEDED = 2; // as VOTES_TO_BUILD in features.mjs
+    const $ = (s) => document.querySelector(s);
+    const el = (tag, cls, text) => {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text != null) e.textContent = text;
+      return e;
+    };
+    const pid = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("ck_pid"));
+      } catch {
+        return null;
+      }
+    })();
+    const ago = (ts) => {
+      const s = (Date.now() - ts) / 1000;
+      if (s < 60) return "just now";
+      if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+      if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+      if (s < 86400 * 30) return `${Math.floor(s / 86400)} d ago`;
+      return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    };
+    let toastTimer;
+    const toast = (msg) => {
+      const t = $("#toast");
+      t.textContent = msg;
+      t.classList.add("on");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove("on"), 3500);
+    };
+
+    // One message to the game server over a short-lived WebSocket (like the game's js/records.js)
+    function ask(msg, want) {
+      return new Promise((resolve, reject) => {
+        const q = new URLSearchParams(location.search).get("server");
+        const base = location.pathname.replace(/features\/[^/]*$/, "");
+        const ws = new WebSocket(q || `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${base}ws`);
+        const timer = setTimeout(() => (ws.close(), reject(new Error("timeout"))), 8000);
+        ws.onmessage = (ev) => {
+          const m = JSON.parse(ev.data);
+          if (m.t === "welcome") ws.send(JSON.stringify({ ...msg, pid }));
+          else if (m.t === want) {
+            clearTimeout(timer);
+            ws.close();
+            resolve(m);
+          }
+        };
+        ws.onerror = () => (clearTimeout(timer), reject(new Error("unreachable")));
+      });
+    }
+
+    const STATE = {
+      building: ["🔧 Being built", "building"],
+      review: ["👀 Built, getting checked", "review"],
+      live: ["🚀 In the game!", "live"],
+      declined: ["Not planned", "declined"],
+    };
+    let ideas = [], played = false, sort = "top";
+
+    function render() {
+      const root = $("#list");
+      root.innerHTML = "";
+      let list = [...ideas];
+      if (sort === "done") list = list.filter((i) => i.state === "live");
+      else if (sort === "top") list.sort((a, b) => (a.state === "declined") - (b.state === "declined") || b.votes - a.votes || b.at - a.at);
+      if (!list.length) root.append(el("p", "ft-empty", sort === "done" ? "Nothing built yet. Vote for the ideas you want!" : "No ideas yet. Be the first!"));
+      for (const i of list) {
+        const card = el("article", "idea");
+        card.id = "idea-" + i.id;
+        card.append(el("h3", "", i.title));
+        if (i.text) card.append(el("p", "txt", i.text));
+        const by = el("div", "by");
+        by.append(el("span", "", `by ${i.mine ? "you" : i.name} · ${ago(i.at)}`));
+        const [label, cls] = STATE[i.state] || [i.votes >= NEEDED ? "✅ Got its votes" : `Needs ${NEEDED - i.votes} more vote${NEEDED - i.votes === 1 ? "" : "s"}`, ""];
+        by.append(el("span", "chip " + cls, label));
+        card.append(by);
+        const v = el("button", "btn vote" + (i.voted ? " on" : ""));
+        v.type = "button";
+        v.append(el("span", "", "👍"), el("b", "", String(i.votes)), el("small", "", i.mine ? "your idea" : i.voted ? "voted" : "vote"));
+        v.title = i.mine ? "You posted this, so it has your vote" : i.voted ? "Take your vote back" : "Vote for this idea";
+        v.disabled = i.mine || !played || i.state === "live" || i.state === "declined";
+        v.addEventListener("click", () => vote(i, v));
+        card.append(v);
+        root.append(card);
+      }
+    }
+
+    async function load() {
+      try {
+        const m = await ask({ t: "ideas" }, "ideas");
+        ideas = m.list;
+        played = !!pid && m.played;
+      } catch {
+        $("#list").innerHTML = "";
+        $("#list").append(el("p", "ft-empty", "Can't load the ideas right now. Try again in a bit."));
+        return;
+      }
+      $("#need-play").hidden = played;
+      $("#form").hidden = !played;
+      render();
+      const h = location.hash.match(/^#idea-(\d+)$/);
+      if (h) document.getElementById("idea-" + h[1])?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    const ERRORS = { play: "Race at least once on this device first!", slow: "That's a lot! Try again in a little while.", short: "Give your idea a title (a few words).", gone: "That idea isn't there anymore." };
+
+    async function vote(i, btn) {
+      btn.disabled = true;
+      try {
+        const r = await ask({ t: "vote", id: i.id, on: !i.voted }, "idea-ok");
+        if (!r.ok) throw new Error(r.error);
+        if (!i.voted && i.votes + 1 === NEEDED) toast("🎉 That's enough votes: this idea gets built!");
+        await load();
+      } catch (err) {
+        toast(ERRORS[err.message] || "Couldn't vote right now. Try again in a bit.");
+        btn.disabled = false;
+      }
+    }
+
+    $("#idea-text").addEventListener("input", () => ($("#count").textContent = `${$("#idea-text").value.length} / 1000`));
+    $("#form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = $("#post");
+      btn.disabled = true;
+      try {
+        const r = await ask({ t: "idea", title: $("#idea-title").value, text: $("#idea-text").value }, "idea-ok");
+        if (!r.ok) throw new Error(r.error);
+        $("#idea-title").value = $("#idea-text").value = "";
+        $("#count").textContent = "0 / 1000";
+        toast(`💡 Posted! It needs ${NEEDED - 1} more vote${NEEDED - 1 === 1 ? "" : "s"} from another racer. Share the page!`);
+        sort = "new";
+        for (const b of document.querySelectorAll("#sort button")) b.classList.toggle("on", b.dataset.s === sort);
+        await load();
+      } catch (err) {
+        toast(ERRORS[err.message] || "Couldn't post it right now. Try again in a bit.");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    for (const b of document.querySelectorAll("#sort button"))
+      b.addEventListener("click", () => {
+        sort = b.dataset.s;
+        for (const x of document.querySelectorAll("#sort button")) x.classList.toggle("on", x === b);
+        render();
+      });
+    $("#needed").textContent = NEEDED;
+    load();
+  </script>
+</body>
+</html>

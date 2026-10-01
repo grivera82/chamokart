@@ -1,6 +1,6 @@
 // Procedural low-poly models: karts, drivers, items.
 import * as THREE from "three";
-import { CHARACTERS } from "../data.js?v=17";
+import { CHARACTERS } from "../data.js?v=19";
 import { cleanLook, DEFAULT_LOOK } from "../look.js?v=3";
 import { buildCustomDriver, dressCustomKart, kartColors, customAnim } from "./custom.js?v=3";
 import { tabbyTexture, itemBoxTexture, shirtLogoTexture, spiderSuitTexture, spiderMaskTexture, spiderWebTexture } from "./textures.js?v=8";
@@ -78,14 +78,18 @@ export function buildDriver(charIndex) {
   const trex = style === "trex";
   const spidey = style === "spidey";
   const tabby = style === "tabby";
-  const fur = tabby && furMaterial("body");
+  const monkey = style === "monkey";
+  const panda = style === "panda";
+  const fur = tabby ? furMaterial("body") : monkey ? mat(MONKEY_FUR, { rough: 0.85 }) : panda && mat(PANDA_BLACK, { rough: 0.85 });
 
   // Torso + arms
-  const torso = mesh(G.capsule(0.3, 0.3), trex ? skin : spidey ? spiderMaterial("suit") : tabby ? fur : shirt, 0, 0.82, -0.2);
+  const torso = mesh(G.capsule(0.3, 0.3), trex || panda ? skin : spidey ? spiderMaterial("suit") : fur || shirt, 0, 0.82, -0.2);
   torso.scale.set(1.1, 1, 0.9);
   g.add(torso);
   if (trex) buildTrexBody(g, c, skin);
   if (tabby) buildTabbyBody(g);
+  if (monkey) buildMonkeyBody(g, skin);
+  if (panda) buildPandaBody(g, fur);
   if (spidey) {
     const emblem = spiderEmblem(0.22, mat(0x140a0a));
     emblem.position.set(0, 0.98, 0.075);
@@ -98,13 +102,13 @@ export function buildDriver(charIndex) {
     print.position.y = 0.05;
     torso.add(print);
   }
-  if (!trex && !spidey && !tabby) g.add(mesh(G.cyl(0.33, 0.33, 0.1), mat(0x333333), 0, 0.6, -0.2)); // belt
+  if (!trex && !spidey && !tabby && !monkey && !panda) g.add(mesh(G.cyl(0.33, 0.33, 0.1), mat(0x333333), 0, 0.6, -0.2)); // belt
   for (const s of trex ? [] : [-1, 1]) {
-    const arm = mesh(G.capsule(0.09, 0.42), tabby ? fur : shirt, s * 0.36, 0.86, 0.06);
+    const arm = mesh(G.capsule(0.09, 0.42), fur || shirt, s * 0.36, 0.86, 0.06);
     arm.rotation.x = -1.1;
     arm.rotation.z = s * 0.25;
     g.add(arm);
-    const hand = mesh(G.sphere(0.1, 10, 8), style === "skull" ? mat(0xffffff) : tabby ? mat(0xf6e6c8) : skin, s * 0.26, 0.72, 0.38);
+    const hand = mesh(G.sphere(0.1, 10, 8), style === "skull" ? mat(0xffffff) : tabby ? mat(0xf6e6c8) : panda ? fur : skin, s * 0.26, 0.72, 0.38);
     g.add(hand);
   }
 
@@ -112,7 +116,7 @@ export function buildDriver(charIndex) {
   if (trex) head.position.set(0, 1.85, -0.02);
   else head.position.set(0, 1.46, -0.16);
   g.add(head);
-  const skull = mesh(G.sphere(0.42, 24, 18), spidey ? spiderMaterial("mask") : tabby ? furMaterial("head") : mat(c.skin), 0, 0, 0);
+  const skull = mesh(G.sphere(0.42, 24, 18), spidey ? spiderMaterial("mask") : tabby ? furMaterial("head") : monkey ? fur : mat(c.skin), 0, 0, 0);
   if (spidey) skull.rotation.x = Math.PI / 2; // texture pole to the front: the web radiates from the face
   head.add(skull);
 
@@ -231,6 +235,67 @@ export function buildDriver(charIndex) {
       head.add(mesh(G.box(0.012, 0.06, 0.02), mat(0x7a3a2a), 0, -0.13, 0.42));
       break;
     }
+    case "monkey": {
+      // Momo: a heart-shaped peach face, big shiny eyes, round ears and a little smile
+      const face = mat(c.skin, { rough: 0.7 });
+      for (const sd of [-1, 1]) {
+        const patch = mesh(G.sphere(0.19, 16, 12), face, sd * 0.13, 0.06, 0.25);
+        patch.scale.set(1, 1.1, 0.75);
+        head.add(patch);
+        const eye = mesh(G.sphere(0.085, 14, 12), mat(0x24140c, { rough: 0.15 }), sd * 0.125, 0.07, 0.36);
+        eye.scale.set(0.95, 1.1, 0.6);
+        head.add(eye);
+        head.add(mesh(G.sphere(0.026, 8, 6), mat(0xffffff, { rough: 0.2 }), sd * 0.125 + 0.03, 0.11, 0.405)); // sparkle
+        head.add(mesh(G.sphere(0.06, 10, 8), mat(0xff9fb0, { rough: 0.8 }), sd * 0.25, -0.1, 0.3)); // blush
+        // Big round ears, peach inside
+        const ear = mesh(G.sphere(0.16, 16, 12), fur, sd * 0.43, 0.04, -0.02);
+        ear.scale.set(0.45, 1, 1);
+        head.add(ear);
+        const inner = mesh(G.sphere(0.11, 14, 10), face, sd * 0.47, 0.04, 0.0);
+        inner.scale.set(0.3, 1, 1);
+        head.add(inner);
+        head.add(mesh(G.sphere(0.018, 6, 5), mat(0x5a3020), sd * 0.035, -0.08, 0.46)); // nostril
+      }
+      const muzzle = mesh(G.sphere(0.21, 18, 12), face, 0, -0.13, 0.27);
+      muzzle.scale.set(1.25, 0.85, 0.75);
+      head.add(muzzle);
+      const smile = mesh(G.torus(0.07, 0.014, 6, 14, Math.PI), mat(0x5a3020), 0, -0.15, 0.43);
+      smile.rotation.set(-0.35, 0, Math.PI);
+      head.add(smile);
+      // A little tuft of hair on top
+      for (const [x, a] of [[-0.06, 0.4], [0, 0], [0.06, -0.4]]) {
+        const tuft = mesh(G.cone(0.05, 0.18, 8), fur, x, 0.44, 0.02);
+        tuft.rotation.z = a;
+        head.add(tuft);
+      }
+      break;
+    }
+    case "panda": {
+      // Bao: a round white face, droopy black eye patches, black ears and a button nose
+      skull.scale.set(1.08, 0.98, 1);
+      for (const sd of [-1, 1]) {
+        const patch = mesh(G.sphere(0.12, 16, 12), fur, sd * 0.15, 0.03, 0.33);
+        patch.scale.set(0.85, 1.25, 0.55);
+        patch.rotation.z = sd * 0.55; // tilted down and out
+        head.add(patch);
+        head.add(mesh(G.sphere(0.055, 12, 10), mat(0x2a2a30, { rough: 0.15 }), sd * 0.14, 0.05, 0.405));
+        head.add(mesh(G.sphere(0.022, 8, 6), mat(0xffffff, { rough: 0.2 }), sd * 0.14 + 0.022, 0.075, 0.448)); // sparkle
+        head.add(mesh(G.sphere(0.055, 10, 8), mat(0xffa6b8, { rough: 0.8 }), sd * 0.27, -0.13, 0.3)); // blush
+        const ear = mesh(G.sphere(0.14, 16, 12), fur, sd * 0.3, 0.33, -0.04);
+        ear.scale.set(1, 1, 0.6);
+        head.add(ear);
+      }
+      const muzzle = mesh(G.sphere(0.15, 16, 12), skin, 0, -0.13, 0.32);
+      muzzle.scale.set(1.3, 0.85, 0.8);
+      head.add(muzzle);
+      const nose = mesh(G.sphere(0.055, 12, 10), fur, 0, -0.07, 0.44);
+      nose.scale.set(1.3, 0.8, 0.8);
+      head.add(nose);
+      const smile = mesh(G.torus(0.045, 0.012, 6, 12, Math.PI), fur, 0, -0.15, 0.435);
+      smile.rotation.set(-0.3, 0, Math.PI);
+      head.add(smile);
+      break;
+    }
     case "trex": {
       skull.scale.set(0.85, 0.82, 1);
       const dark = mat(0x3d7a2a);
@@ -327,6 +392,40 @@ function buildTabbyBody(g) {
   g.add(tail);
   g.userData.tail = tail;
   g.userData.cat = true; // the race view makes him look back and meow on speed boosters
+}
+
+// Momo's peach belly and a long tail that curls up into a spiral behind the seat.
+const MONKEY_FUR = 0x8a5a33;
+function buildMonkeyBody(g, skin) {
+  const belly = mesh(G.sphere(0.25, 14, 10), mat(skin.color.getHex(), { rough: 0.7 }), 0, 0.8, 0.03);
+  belly.scale.set(0.85, 1.1, 0.45);
+  g.add(belly);
+  const tail = new THREE.Group();
+  tail.position.set(-0.15, 0.62, -0.55);
+  const fur = mat(MONKEY_FUR, { rough: 0.85 });
+  let parent = tail;
+  for (let i = 0; i < 11; i++) {
+    // Back and up, then tighter and tighter into a curl at the tip
+    const seg = new THREE.Group();
+    if (i) seg.position.y = 0.13;
+    seg.rotation.x = i === 0 ? -1.4 : i < 4 ? 0.12 : 0.5;
+    seg.add(mesh(G.capsule(0.05 - i * 0.002, 0.09), fur, 0, 0.06, 0));
+    parent.add(seg);
+    parent = seg;
+  }
+  g.add(tail);
+  g.userData.tail = tail;
+  g.userData.monkey = true;
+}
+
+// Bao's black shoulders: a band across the back and over both shoulders, like a real panda.
+const PANDA_BLACK = 0x1e1e24;
+function buildPandaBody(g, black) {
+  const band = mesh(G.capsule(0.2, 0.42), black, 0, 1.06, -0.22);
+  band.rotation.z = Math.PI / 2;
+  band.scale.set(1, 1, 1.05);
+  g.add(band);
+  g.userData.panda = true;
 }
 
 // Neck, belly, tail and tiny arms (the head is built with the rest of the heads).
@@ -529,14 +628,43 @@ export function buildKart(charIndex, kartIndex, look) {
 
   root.userData = { body, wheels, steerPivots, exhausts, driver, wheelR, steeringWheel: sw };
   if (custom) dressCustomKart(root, custom, kartIndex, anim);
-  if (driver.userData.tail) {
-    // Dorito: a tortilla chip on the nose, and a tail that swishes (faster at speed)
+  if (driver.userData.panda) {
+    // Bao: a stalk of bamboo standing on the nose, with a couple of leaves
+    const bamboo = new THREE.Group();
+    const stalk = mat(0x6cbf3c, { rough: 0.5 });
+    const node = mat(0x4a9a2a, { rough: 0.5 });
+    for (let i = 0; i < 3; i++) {
+      bamboo.add(mesh(G.cyl(0.045, 0.05, 0.2, 8), stalk, 0, 0.1 + i * 0.21, 0));
+      bamboo.add(mesh(G.cyl(0.058, 0.058, 0.025, 8), node, 0, 0.205 + i * 0.21, 0));
+    }
+    for (const sd of [-1, 1]) {
+      const leaf = mesh(G.sphere(0.12, 8, 6), mat(0x3f9a32, { rough: 0.6 }), sd * 0.1, 0.5 + (sd > 0 ? 0.12 : 0), 0);
+      leaf.scale.set(1, 0.18, 0.4);
+      leaf.rotation.z = sd * 0.5;
+      bamboo.add(leaf);
+    }
+    bamboo.position.set(...[[0.38, 0.72, 1.05], [0.36, 0.58, 1.2], [0.42, 0.85, 0.95]][kartIndex]); // off to the side, clear of his face
+    bamboo.rotation.z = -0.2;
+    body.add(bamboo);
+  }
+  if (driver.userData.monkey) {
+    // Momo: a banana on the nose, standing up like a hood ornament
+    const banana = buildBanana();
+    banana.scale.setScalar(0.6);
+    banana.position.set(...[[0, 0.92, 1.0], [0, 0.72, 1.25], [0, 1.0, 0.9]][kartIndex]);
+    body.add(banana);
+  }
+  if (driver.userData.cat) {
+    // Dorito: a tortilla chip on the nose
     // Standing up on the nose like a hood ornament, point up, cheese dust facing forward
     const chip = mesh(G.cyl(0.3, 0.3, 0.06, 3), mat(0xf5b02e, { rough: 0.7 }), ...[[0, 1.02, 1.05], [0, 0.82, 1.3], [0, 1.1, 0.95]][kartIndex]);
     chip.rotation.set(Math.PI / 2, 0, 0);
     chip.rotation.z = Math.PI / 2; // a corner at the top
     body.add(chip);
     for (const [x, z] of [[0.06, 0.05], [-0.08, -0.03], [0.02, -0.1], [-0.02, 0.12]]) chip.add(mesh(G.sphere(0.03, 6, 4), mat(0xd9481a), x, 0.035, z));
+  }
+  if (driver.userData.tail) {
+    // Dorito's and Momo's tails swish (faster at speed)
     const tail = driver.userData.tail;
     let t = 0;
     root.userData.tick = (dt, time, speed = 0) => {
@@ -651,6 +779,59 @@ function cx9Wheel(M, side, r) {
   cap.rotation.z = Math.PI / 2;
   wheel.add(cap);
   return wheel;
+}
+
+// A girl riding shotgun in the CX-9: long brown hair, a pink top and a hair bow.
+function buildPassenger() {
+  const g = new THREE.Group();
+  const skin = mat(0xe8b48c);
+  const top = mat(0xf06aa8);
+  const hairM = mat(0x4a2a18, { rough: 0.7 });
+  const torso = mesh(G.capsule(0.28, 0.3), top, 0, 0.82, -0.2);
+  torso.scale.set(1.05, 1, 0.9);
+  g.add(torso);
+  for (const s of [-1, 1]) {
+    const arm = mesh(G.capsule(0.085, 0.42), top, s * 0.34, 0.86, 0.04);
+    arm.rotation.x = -0.8;
+    arm.rotation.z = s * 0.2;
+    g.add(arm);
+    g.add(mesh(G.sphere(0.095, 10, 8), skin, s * 0.26, 0.7, 0.3));
+  }
+  const head = new THREE.Group();
+  head.position.set(0, 1.42, -0.16);
+  g.add(head);
+  head.add(mesh(G.sphere(0.4, 24, 18), skin));
+  eyes(head);
+  head.add(mesh(G.sphere(0.06, 10, 8), mat(0xd9957a), 0, -0.05, 0.4)); // nose
+  const smile = mesh(G.torus(0.09, 0.012, 6, 14, Math.PI), mat(0xc2454f), 0, -0.14, 0.36);
+  smile.rotation.z = Math.PI;
+  head.add(smile);
+  for (const s of [-1, 1]) head.add(mesh(G.sphere(0.07, 8, 6), mat(0xff9fb0), s * 0.24, -0.08, 0.3)); // cheeks
+  // Hair: a cap over the top and back, long locks down the sides, a fringe and a bow
+  const cap = mesh(G.sphere(0.43, 18, 10), hairM, 0, 0.05, -0.06);
+  cap.geometry = new THREE.SphereGeometry(0.43, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.55);
+  cap.rotation.x = -0.25;
+  head.add(cap);
+  const back = mesh(G.sphere(0.4), hairM, 0, -0.22, -0.16);
+  back.scale.set(1, 1.15, 0.8);
+  head.add(back);
+  for (const s of [-1, 1]) {
+    const lock = mesh(G.capsule(0.09, 0.4), hairM, s * 0.36, -0.22, -0.02);
+    lock.rotation.z = s * 0.06;
+    head.add(lock);
+  }
+  const fringe = mesh(G.sphere(0.3), hairM, 0, 0.27, 0.22);
+  fringe.scale.set(1.2, 0.35, 0.7);
+  head.add(fringe);
+  const bow = mat(0xffd23f);
+  for (const s of [-1, 1]) {
+    const w = mesh(G.cone(0.1, 0.2, 10), bow, s * 0.14, 0.4, 0.05);
+    w.rotation.z = -s * Math.PI / 2;
+    head.add(w);
+  }
+  head.add(mesh(G.sphere(0.055, 8, 6), bow, 0, 0.4, 0.05));
+  g.userData = { head };
+  return g;
 }
 
 export const CX9_SCALE = 0.8;
@@ -797,8 +978,12 @@ function buildCX9(charIndex) {
   const driver = buildDriver(charIndex);
   driver.position.set(0.45, -0.02, 0.36);
   car.add(driver);
+  // Her friend next to him in the front seat
+  const passenger = buildPassenger();
+  passenger.position.set(-0.45, -0.02, 0.36);
+  car.add(passenger);
 
-  root.userData = { body, wheels, steerPivots, exhausts, driver, wheelR: wheelR * CX9_SCALE, steeringWheel: sw, doors, showroomScale: 0.8,
+  root.userData = { body, wheels, steerPivots, exhausts, driver, passenger, wheelR: wheelR * CX9_SCALE, steeringWheel: sw, doors, showroomScale: 0.8,
     wheelPos: CX9_WHEELS.map(([x, z]) => [x * CX9_SCALE, z * CX9_SCALE]) };
   return root;
 }

@@ -1,6 +1,6 @@
 // In-race HUD: item slot, place, laps, timer, minimap, standings, overlays.
-import { COUNTDOWN } from "./sim/race.js?v=19";
-import { CHARACTERS, racerColor, ITEMS, EIGHT } from "./data.js?v=17";
+import { COUNTDOWN } from "./sim/race.js?v=21";
+import { CHARACTERS, racerColor, ITEMS, EIGHT } from "./data.js?v=19";
 
 const BANANA = `<path d="M14 12c6 2 7 8 8 14 2 12 10 22 26 24 3 0 4 3 1 5-18 5-36-6-38-25-1-7 0-13 3-18z" fill="#ffd83a" stroke="#8a5a10" stroke-width="3" stroke-linejoin="round"/><path d="M13 12l-3-5 5-1 2 6z" fill="#5a3a1a"/><path d="M18 22c1 10 7 19 18 24" fill="none" stroke="#fff3a0" stroke-width="3" stroke-linecap="round"/>`;
 const svg = (inner) => `<svg viewBox="0 0 64 64">${inner}</svg>`;

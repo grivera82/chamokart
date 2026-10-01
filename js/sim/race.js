@@ -1,9 +1,9 @@
 // Race simulation: karts, items, rules, standings. Rendering-agnostic.
-import { TRACKS, AI_SKILL } from "../data.js?v=17";
+import { TRACKS, AI_SKILL } from "../data.js?v=19";
 import { Track } from "./track.js?v=4";
-import { Kart } from "./kart.js?v=18";
+import { Kart } from "./kart.js?v=20";
 import { AIDriver } from "./ai.js?v=6";
-import { ItemSystem } from "./items.js?v=19";
+import { ItemSystem } from "./items.js?v=21";
 
 export const STEP = 1 / 120;
 export const COUNTDOWN = 3.2; // seconds of 3-2-1 before GO

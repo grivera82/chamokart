@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { CURB } from "../sim/track.js?v=4";
 import * as T from "./textures.js?v=8";
-import { mat } from "./models.js?v=20";
+import { mat } from "./models.js?v=24";
 
 export const THEMES = {
   meadow: {

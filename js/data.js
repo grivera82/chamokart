@@ -4,9 +4,9 @@ import { cleanStats } from "./look.js?v=3";
 export const CHARACTERS = [
   { name: "Chamo", color: 0xe23b3b, accent: 0xffffff, skin: 0xe2a36f, style: "cap", tag: "All-rounder",
     stats: { speed: 3, accel: 3, weight: 3, handling: 3 } },
-  { name: "agenteintermediario", color: 0xf7f7f5, accent: 0x1a1a1a, skin: 0xd99a6c, style: "balmain", car: "cx9", tag: "Quick off the line",
+  { name: "Momo", color: 0x34b86a, accent: 0xffd83a, skin: 0xf3cfa4, style: "monkey", tag: "Cheeky banana lover",
     stats: { speed: 3, accel: 4, weight: 2, handling: 3 } },
-  { name: "Spider-Man", color: 0xd0202a, accent: 0x1e4fd8, skin: 0xd0202a, style: "spidey", car: "spider", tag: "Your friendly neighborhood racer",
+  { name: "Bao", color: 0xf48fb1, accent: 0x5cb85c, skin: 0xf7f5f0, style: "panda", tag: "Big, soft and hard to push around",
     stats: { speed: 3, accel: 2, weight: 4, handling: 3 } },
   { name: "Lucas", color: 0xf07a22, accent: 0xf4ecd6, skin: 0x5aa83c, style: "trex", car: "pickup", tag: "Tiny arms, big truck",
     stats: { speed: 2, accel: 4, weight: 2, handling: 4 } },

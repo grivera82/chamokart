@@ -10,3 +10,7 @@ vapid.json
 accounts.json
 feedback.json
 ghosts/
+bugs.json
+features.json
+beaten.json
+challenges/

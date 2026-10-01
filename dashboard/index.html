@@ -117,6 +117,46 @@
     .fb-btns .btn { padding: 5px 10px; font-size: 13px; }
     #feedback-panel h2 small .fb-new { font-size: 13px; }
 
+    /* bugs and Claude's fixes */
+    .bug-item { border: 3px solid var(--ink); border-radius: 16px; padding: 10px 12px; margin-bottom: 10px; background: #fff; scroll-margin-top: 16px; }
+    .bug-item.muted-item { opacity: 0.6; }
+    .bug-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .bug-msg { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700; font-size: 14px; overflow-wrap: anywhere; flex: 1 1 320px; }
+    .bug-meta { color: var(--muted); font-size: 12px; font-weight: 800; margin-top: 4px; display: flex; gap: 6px 12px; flex-wrap: wrap; }
+    .chip { font-size: 11px; font-weight: 900; padding: 1px 8px; border-radius: 8px; white-space: nowrap; background: #efe9fb; color: var(--ink); }
+    .chip.red { background: var(--red); color: #fff; }
+    .chip.green { background: #1f9d55; color: #fff; }
+    .chip.yellow { background: var(--yellow); }
+    .chip.purple { background: var(--purple); color: #fff; }
+    .bug-item details { margin-top: 8px; }
+    .bug-item summary { cursor: pointer; font-weight: 800; font-size: 13px; color: var(--muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    pre.bug-pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f5f2fb; border-radius: 10px; padding: 8px 10px; margin: 6px 0; max-height: 260px; overflow: auto; }
+    .bug-crumbs { margin: 4px 0 0; padding-left: 18px; font-size: 12px; }
+    .bug-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-top: 8px; }
+    .bug-btns .btn { padding: 5px 10px; font-size: 13px; }
+    .fix-box { border: 3px dashed var(--purple); border-radius: 14px; padding: 10px 12px; margin-top: 10px; background: #faf8ff; }
+    .fix-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 900; }
+    .fix-status .st-dim { font-weight: 800; font-size: 13px; }
+    .fix-activity { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 220px; overflow: auto; }
+    .fix-activity li { font-size: 12px; overflow-wrap: anywhere; }
+    .fix-activity li.tool { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #5b4f75; }
+    .fix-activity li.text { font-weight: 700; }
+    .fix-report { font-weight: 700; font-size: 14px; }
+    .fix-report h4 { font-family: var(--display); font-weight: 400; font-size: 17px; margin: 10px 0 2px; }
+    .fix-report p { margin: 0 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .fix-ask { background: var(--yellow); border-radius: 10px; padding: 6px 10px; font-weight: 800; font-size: 13px; margin: 8px 0 0; white-space: pre-wrap; }
+    .fix-files { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; font-size: 12px; }
+    pre.diff { background: #1d1a26; color: #e8e4f4; border-radius: 10px; padding: 8px 0; margin: 6px 0; max-height: 480px; overflow: auto; font-size: 12px; line-height: 1.45; }
+    pre.diff span { display: block; padding: 0 10px; white-space: pre; }
+    pre.diff .add { background: #1f4d2e; color: #c9f5d6; }
+    pre.diff .del { background: #5a2330; color: #ffd0d8; }
+    pre.diff .hunk { color: #b9a4ff; }
+    pre.diff .file { color: #ffd23f; font-weight: 700; }
+    .fix-form { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .fix-form textarea { font: inherit; font-weight: 700; font-size: 14px; min-height: 70px; padding: 8px 10px; border: 3px solid var(--ink); border-radius: 12px; resize: vertical; }
+    .fix-err { background: #ffe1e1; border-radius: 10px; padding: 6px 10px; font-weight: 800; font-size: 13px; margin-top: 8px; overflow-wrap: anywhere; }
+
     @media (max-width: 600px) {
       .st-title h1 { font-size: 34px; }
       .st-tile b { font-size: 28px; }
@@ -146,6 +186,25 @@
         <button class="btn small" id="fb-notify" hidden>🔔 Notify me on this device</button>
       </div>
       <div id="fb-list"></div>
+    </section>
+
+    <section class="panel st-panel" id="bugs-panel">
+      <h2 id="bugs">🐞 Bugs <small id="bug-count"></small></h2>
+      <div class="fb-tools">
+        <div id="bug-filter" class="seg"><button data-f="open" class="on">Open</button><button data-f="fixed">Fixed</button><button data-f="ignored">Ignored</button><button data-f="all">All</button></div>
+      </div>
+      <p class="fix-err" id="fixer-note" hidden></p>
+      <div id="bug-list"></div>
+    </section>
+
+    <section class="panel st-panel" id="ideas-panel">
+      <h2 id="ideas">💡 Ideas <small id="idea-count"></small></h2>
+      <div class="fb-tools">
+        <div id="idea-filter" class="seg"><button data-f="active" class="on">Active</button><button data-f="live">Live</button><button data-f="all">All</button></div>
+        <a class="btn small" href="../features/" target="_blank" rel="noopener">Open the ideas page ↗</a>
+      </div>
+      <p class="fb-ctx" id="idea-auto"></p>
+      <div id="idea-list"></div>
     </section>
 
     <section class="panel st-panel">
@@ -252,7 +311,7 @@
     async function loadPortraits() {
       try {
         const THREE = await import("three");
-        const { renderPortraits } = await import("../js/view/showroom.js?v=17");
+        const { renderPortraits } = await import("../js/view/showroom.js?v=21");
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -655,8 +714,372 @@
         renderFeedback();
       });
 
+    // ------------------------------------------------------------ bugs and Claude's fixes
+    // Bugs come from the game server (crash reports); fixes from the fixer service, which runs
+    // Claude on a copy of the game and deploys a fix when it's approved here.
+    let bugFilter = "open", fixer = null, fixTimer = null;
+    const openBugs = new Set(), asking = new Set(), drafts = new Map();
+    const FIX_LABEL = {
+      queued: ["⏳ Waiting for Claude", "yellow"],
+      running: ["🔧 Claude is working on it", "purple"],
+      ready: ["✅ Ready to review", "green"],
+      "no-fix": ["🔎 Claude changed nothing", "yellow"],
+      failed: ["⚠️ Claude's run failed", "red"],
+      cancelled: ["Cancelled", ""],
+      rejected: ["Rejected", ""],
+      conflict: ["⚠️ The live code changed", "red"],
+      deployed: ["🚀 Live", "green"],
+      "rolled-back": ["↩ Rolled back", ""],
+    };
+    const fixPost = (body) => fetch("fixer", { method: "POST", headers: { "content-type": "application/json", "x-chamo-stats": "1" }, body: JSON.stringify(body) }).then((r) => r.json());
+    const secs = (s) => (s >= 90 ? `${Math.round(s / 60)} min` : `${s} s`);
+    const bugState = (b) => (b.ignored ? "ignored" : b.fixedAt && !b.sinceFix ? "fixed" : "open");
+
+    async function loadFixer() {
+      try {
+        const r = await fetch("fixer", { cache: "no-store" });
+        fixer = r.ok ? await r.json() : null;
+      } catch {
+        fixer = null;
+      }
+      clearTimeout(fixTimer);
+      if (fixer?.jobs.some((j) => j.status === "queued" || j.status === "running"))
+        fixTimer = setTimeout(async () => {
+          const busy = new Set(fixer.jobs.filter((j) => j.status === "queued" || j.status === "running").map((j) => j.id));
+          await loadFixer();
+          // A run just finished: the game server has the bug's new status too
+          if (fixer?.jobs.some((j) => busy.has(j.id) && j.status !== "queued" && j.status !== "running")) await load();
+          else renderBugs(), renderIdeas();
+        }, 3000);
+    }
+
+    function reportView(text) {
+      const d = el("div", "fix-report");
+      let para = [];
+      const flush = () => para.length && (d.append(el("p", "", para.join("\n").trim())), (para = []));
+      for (const line of text.split("\n")) {
+        const h = line.match(/^#{1,4}\s+(.*)/);
+        if (h) flush(), d.append(el("h4", "", h[1]));
+        else if (!line.trim()) flush();
+        else para.push(line.replace(/\*\*(.+?)\*\*/g, "$1").replace(/`([^`]+)`/g, "$1"));
+      }
+      flush();
+      return d;
+    }
+
+    function diffView(diff) {
+      const pre = el("pre", "diff");
+      for (const line of diff.split("\n")) {
+        if (/^diff -ruN|^Only in/.test(line)) continue;
+        const cls = /^(\+\+\+|---) /.test(line) ? "file" : line.startsWith("@@") ? "hunk" : line.startsWith("+") ? "add" : line.startsWith("-") ? "del" : "";
+        pre.append(el("span", cls, /^(\+\+\+|---) /.test(line) ? line.replace(/^(\+\+\+|---) (base|work)\//, "$1 ").replace(/\t.*$/, "") : line || " "));
+      }
+      return pre;
+    }
+
+    async function fixAction(body, btn, confirmText) {
+      if (confirmText && !confirm(confirmText)) return;
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fixPost(body);
+        if (!r.ok) alert(r.error || "That didn't work.");
+        else if (body.action === "approve" || body.action === "rollback") alert(r.restarted ? "Done. The multiplayer server restarted to pick it up." : "Done. Players get it the next time they load the game.");
+        return r;
+      } catch {
+        alert("Couldn't reach the fixer.");
+      } finally {
+        if (btn) btn.disabled = false;
+        await Promise.all([load(), loadFixer()]);
+      }
+    }
+
+    function fixBox(job) {
+      const box = el("div", "fix-box");
+      const [label, color] = FIX_LABEL[job.status] || [job.status, ""];
+      const status = el("div", "fix-status");
+      status.append(el("span", "chip " + color, label));
+      const last = job.rounds.at(-1);
+      if (job.status === "running") status.append(el("span", "st-dim", `started ${ago(job.started)} · updates every few seconds`));
+      else if (job.status === "deployed") status.append(el("span", "st-dim", `live since ${dateTime(job.deployedAt)}${job.restarted ? " · server restarted" : ""}`));
+      else if (last?.done) status.append(el("span", "st-dim", [`took ${secs(last.seconds)}`, last.turns && `${last.turns} steps`, dateTime(last.done)].filter(Boolean).join(" · ")));
+      box.append(status);
+
+      // What Claude is doing right now
+      if (job.status === "running" || job.status === "queued") {
+        const list = el("ul", "fix-activity");
+        for (const a of job.activity.slice(-12)) list.append(el("li", a.kind, a.text));
+        if (!job.activity.length) list.append(el("li", "note", "Getting a copy of the game ready…"));
+        box.append(list);
+        requestAnimationFrame(() => (list.scrollTop = list.scrollHeight));
+      }
+      if (job.error && !["running", "queued"].includes(job.status)) box.append(el("div", "fix-err", job.error));
+
+      // Claude's report for each round, and what the owner asked in between
+      const rounds = job.rounds.filter((r) => r.report || r.ask);
+      rounds.forEach((r, i) => {
+        const latest = i === rounds.length - 1;
+        const wrap = latest ? box : el("details");
+        if (!latest) wrap.append(el("summary", "", `Earlier: ${r.ask ? "your request and Claude's answer" : "Claude's first report"}`));
+        if (r.ask) wrap.append(el("div", "fix-ask", "You asked: " + r.ask));
+        if (r.report) wrap.append(reportView(r.report));
+        if (!latest) box.append(wrap);
+      });
+
+      if (job.files?.length && !["running", "queued"].includes(job.status)) {
+        const files = el("div", "fix-files");
+        for (const f of job.files) files.append(el("span", "mono", `${f.change === "added" ? "+ " : f.change === "deleted" ? "− " : "~ "}${f.path}${f.deployable ? "" : "  (not deployed: only game files go live)"}`));
+        const det = el("details");
+        det.open = job.status === "ready";
+        det.append(el("summary", "", `Changes (${job.files.length} file${job.files.length > 1 ? "s" : ""})${job.restartNeeded ? " · restarts the multiplayer server" : ""}`), files, diffView(job.diff || ""));
+        box.append(det);
+      }
+
+      const btns = el("div", "bug-btns");
+      const button = (text, cls, fn) => {
+        const b = el("button", "btn " + cls, text);
+        b.addEventListener("click", () => fn(b));
+        btns.append(b);
+      };
+      const s = job.status;
+      // Play Claude's copy of the game before approving (tailnet only, its own address and server)
+      const playing = fixer?.preview?.job === job.id;
+      if (playing) {
+        const note = el("div", "fix-ask");
+        note.append("▶ Being previewed at ");
+        const a = el("a", "", fixer.preview.url.replace(/^https:\/\//, ""));
+        a.href = fixer.preview.url;
+        a.target = "_blank";
+        a.rel = "noopener";
+        note.append(a, ` until ${new Date(fixer.preview.until).toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" })}. It has its own empty boards and players, and only works on your tailnet.`);
+        box.append(note);
+        button("■ Stop preview", "ghost", (b) => fixAction({ action: "preview-stop" }, b));
+      }
+      if (s !== "queued" && (job.files?.length || s === "running"))
+        button(playing ? "▶ Open it" : "▶ Play it", "", async (b) => {
+          if (playing) return window.open(fixer.preview.url, "_blank", "noopener");
+          const w = window.open("", "_blank"); // now, while it's still a click (popup blockers)
+          b.disabled = true;
+          b.textContent = "Starting…";
+          try {
+            const r = await fixPost({ action: "preview", id: job.id });
+            if (!r.ok) throw new Error(r.error || "It didn't start.");
+            if (w) (w.opener = null), (w.location = r.url);
+            else window.open(r.url, "_blank", "noopener");
+          } catch (err) {
+            w?.close();
+            alert(err.message);
+          } finally {
+            await loadFixer();
+            renderBugs(), renderIdeas();
+          }
+        });
+      if (s === "running" || s === "queued") button("■ Stop", "ghost", (b) => fixAction({ action: "cancel", id: job.id }, b, "Stop Claude's run?"));
+      if (["ready", "no-fix", "failed", "conflict"].includes(s)) {
+        button("💬 Ask for changes", "", () => {
+          asking.has(job.id) ? asking.delete(job.id) : asking.add(job.id);
+          renderBugs();
+          renderIdeas();
+        });
+      }
+      if (s === "ready")
+        button("✖ Reject", "ghost", (b) => fixAction({ action: "reject", id: job.id }, b, `Throw this ${job.kind === "feature" ? "feature" : "fix"} away?`));
+      if (["no-fix", "failed", "conflict", "cancelled", "rejected", "rolled-back"].includes(s)) {
+        if (s !== "cancelled" && s !== "rejected" && s !== "rolled-back") button("✖ Dismiss", "ghost", (b) => fixAction({ action: "reject", id: job.id }, b));
+        const again = job.kind === "feature" ? { action: "build", ideaId: job.target } : { action: "fix", bugId: job.target };
+        button(s === "conflict" ? "🔧 Redo on the latest code" : job.kind === "feature" ? "🔧 Build it again" : "🔧 Start a new fix", "", (b) => fixAction(again, b));
+      }
+      if (s === "ready")
+        button("✅ Approve & deploy", "primary", (b) =>
+          fixAction({ action: "approve", id: job.id }, b, `Put this ${job.kind === "feature" ? "feature" : "fix"} live on jgrivera.com/chamokart?${job.restartNeeded ? `\n\nThe multiplayer server restarts, so ${data.online.clients} connected player(s) get disconnected for a moment.` : ""}`)
+        );
+      if (s === "deployed") button("↩ Roll back", "ghost", (b) => fixAction({ action: "rollback", id: job.id }, b, `Undo this ${job.kind === "feature" ? "feature" : "fix"} on the live site?`));
+      box.append(btns);
+
+      if (asking.has(job.id)) {
+        const form = el("div", "fix-form");
+        const ta = el("textarea");
+        ta.placeholder = "What should Claude change or look at? It picks up where it left off, with its copy of the game.";
+        ta.value = drafts.get(job.id) || "";
+        ta.addEventListener("input", () => drafts.set(job.id, ta.value));
+        const send = el("button", "btn primary", "Send to Claude");
+        send.addEventListener("click", async () => {
+          const r = await fixAction({ action: "changes", id: job.id, text: ta.value }, send);
+          if (r?.ok) asking.delete(job.id), drafts.delete(job.id), renderBugs(), renderIdeas();
+        });
+        const row = el("div", "bug-btns");
+        row.append(send);
+        form.append(ta, row);
+        box.append(form);
+        setTimeout(() => ta.focus(), 30);
+      }
+      return box;
+    }
+
+    function bugDetails(b) {
+      const det = el("details");
+      det.open = openBugs.has(b.id);
+      det.addEventListener("toggle", () => (det.open ? openBugs.add(b.id) : openBugs.delete(b.id)));
+      const latest = b.samples.at(-1);
+      det.append(el("summary", "", `Details · ${b.samples.length} latest report${b.samples.length > 1 ? "s" : ""}`));
+      for (const smp of [...b.samples].reverse()) {
+        const c = smp.ctx || {};
+        const where = [WHERE[c.screen] || c.screen, MODE_NAMES[c.mode] || c.mode, c.track, c.online && "online", c.device, c.browser, c.controls, c.viewport, smp.version && `v${smp.version}`].filter(Boolean).join(" · ");
+        const who = el("div", "fb-ctx", `${dateTime(smp.at)} · ${smp.name || "someone"}${smp.country ? " (" + regionName(smp.country) + ")" : ""} · ${secs(smp.uptime)} after loading · ${where}`);
+        det.append(who);
+        if (smp === latest) {
+          det.append(el("pre", "bug-pre mono", smp.stack || "(no stack)"));
+          if (smp.crumbs?.length) {
+            const ol = el("ol", "bug-crumbs mono");
+            for (const [t, what] of smp.crumbs) ol.append(el("li", "", `${t}s  ${what}`));
+            det.append(el("div", "fb-ctx", "Leading up to it:"), ol);
+          }
+        }
+      }
+      return det;
+    }
+
+    function renderBugs() {
+      const list = data.bugs || [];
+      const jobs = fixer?.jobs || [];
+      const jobFor = new Map();
+      for (const j of jobs) if (j.kind === "bug" && !jobFor.has(j.target)) jobFor.set(j.target, j); // newest first
+      const open = list.filter((b) => bugState(b) === "open");
+      const count = $("#bug-count");
+      count.innerHTML = "";
+      const ready = jobs.filter((j) => j.kind === "bug" && j.status === "ready").length;
+      if (open.length) count.append(el("span", "fb-new", `${open.length} open`), " ");
+      if (ready) count.append(el("span", "chip green", `${ready} fix${ready > 1 ? "es" : ""} to review`), " ");
+      if (list.length) count.append(`${list.length} total`);
+
+      const note = $("#fixer-note");
+      note.hidden = !!fixer?.ready;
+      note.textContent = !fixer ? "The fixer service isn't answering, so Claude can't fix bugs right now (systemctl status chamokart-fixer)." : "Claude isn't connected yet. See /opt/chamokart-fixer/README.md on the server to set it up.";
+
+      const root = $("#bug-list");
+      root.innerHTML = "";
+      const shown = bugFilter === "all" ? list : list.filter((b) => bugState(b) === bugFilter);
+      if (!shown.length)
+        root.append(el("p", "muted", list.length ? { open: "No open bugs. 🎉", fixed: "No fixed bugs yet.", ignored: "Nothing ignored." }[bugFilter] || "Nothing here." : "No crashes reported yet. The game reports its errors here on its own."));
+      for (const b of shown) {
+        const job = jobFor.get(b.id);
+        const item = el("div", "bug-item" + (b.ignored ? " muted-item" : ""));
+        item.id = "bug-" + b.id;
+        const head = el("div", "bug-head");
+        head.append(el("span", "bug-msg", `${b.name ? b.name + ": " : ""}${b.message}`));
+        if (b.sinceFix) head.append(el("span", "chip red", `seen ${b.sinceFix}× since the fix`));
+        else if (b.fixedAt) head.append(el("span", "chip green", "fixed"));
+        else if (!b.ignored && !job) head.append(el("span", "fb-new", "NEW"));
+        if (b.ignored) head.append(el("span", "chip", "ignored"));
+        item.append(head);
+        const top = (o) => Object.entries(o || {}).sort((x, y) => y[1] - x[1]).slice(0, 2).map(([k, n]) => `${k} (${n})`).join(", ");
+        const meta = el("div", "bug-meta");
+        for (const t of [b.where?.file && `${b.where.file}:${b.where.line}${b.where.fn ? " in " + b.where.fn : ""}`, `${nf.format(b.count)}× · ${b.players} player${b.players === 1 ? "" : "s"}`, `last ${ago(b.last)}, first ${ago(b.first)}`, top(b.browsers), top(b.versions) && "v" + top(b.versions)].filter(Boolean)) meta.append(el("span", "", t));
+        item.append(meta, bugDetails(b));
+        if (job && job.status !== "rejected") item.append(fixBox(job));
+
+        const btns = el("div", "bug-btns");
+        const busy = job && ["queued", "running", "ready"].includes(job.status);
+        if (!busy && (!job || ["rejected", "cancelled", "rolled-back", "deployed"].includes(job.status)) && fixer?.ready && !b.ignored) {
+          const fix = el("button", "btn primary", job?.status === "deployed" ? "🔧 Fix again with Claude" : "🔧 Fix with Claude");
+          fix.addEventListener("click", () => fixAction({ action: "fix", bugId: b.id }, fix));
+          btns.append(fix);
+        }
+        const ign = el("button", "btn ghost", b.ignored ? "↩ Unignore" : "🙈 Ignore");
+        ign.addEventListener("click", async () => {
+          if ((await post({ action: "bug-ignore", id: b.id, ignored: !b.ignored })).ok) (b.ignored = !b.ignored), renderBugs();
+        });
+        const del = el("button", "btn ghost", "🗑 Delete");
+        del.addEventListener("click", async () => {
+          if (!confirm("Delete this bug? If it happens again it comes back as new.")) return;
+          if ((await post({ action: "bug-delete", id: b.id })).ok) (data.bugs = data.bugs.filter((x) => x !== b)), renderBugs();
+        });
+        if (!busy) btns.append(ign, del);
+        item.append(btns);
+        root.append(item);
+      }
+    }
+
+    for (const b of document.querySelectorAll("#bug-filter button"))
+      b.addEventListener("click", () => {
+        bugFilter = b.dataset.f;
+        for (const x of document.querySelectorAll("#bug-filter button")) x.classList.toggle("on", x === b);
+        renderBugs();
+      });
+
+
+    // ------------------------------------------------------------ feature ideas
+    // From the public /chamokart/features page. When enough different players back one, the
+    // fixer has Claude build it (a few a day at most); it goes live when approved here.
+    let ideaFilter = "active";
+    const IDEA_STATE = { open: ["open", ""], building: ["🔧 building", "purple"], review: ["👀 to review", "green"], live: ["🚀 live", "green"], declined: ["not planned", ""] };
+
+    function renderIdeas() {
+      const list = data.ideas || [];
+      const jobs = (fixer?.jobs || []).filter((j) => j.kind === "feature");
+      const jobFor = new Map();
+      for (const j of jobs) if (!jobFor.has(j.target)) jobFor.set(j.target, j);
+      const count = $("#idea-count");
+      count.innerHTML = "";
+      const toReview = jobs.filter((j) => j.status === "ready").length;
+      if (toReview) count.append(el("span", "chip green", `${toReview} to review`), " ");
+      if (list.length) count.append(`${list.length} total`);
+      $("#idea-auto").textContent = fixer ? `Ideas with ${2} backers get built on their own, up to ${fixer.autoPerDay} a day (${fixer.autoLeft} left today). 🔧 Build now always works.` : "";
+
+      const root = $("#idea-list");
+      root.innerHTML = "";
+      const shown = list.filter((i) => ideaFilter === "all" || (ideaFilter === "live" ? i.state === "live" : !i.hidden && i.state !== "live" && i.state !== "declined"));
+      if (!shown.length) root.append(el("p", "muted", list.length ? "Nothing here." : "No ideas yet. Players post them on jgrivera.com/chamokart/features."));
+      for (const i of shown) {
+        const job = jobFor.get(i.id);
+        const item = el("div", "bug-item" + (i.hidden ? " muted-item" : ""));
+        item.id = "idea-" + i.id;
+        const head = el("div", "bug-head");
+        head.append(el("b", "", i.title));
+        const [label, color] = IDEA_STATE[i.state] || [i.state, ""];
+        head.append(el("span", "chip " + color, label));
+        if (i.hidden) head.append(el("span", "chip", "hidden"));
+        if (i.wanted && i.state === "open" && !job) head.append(el("span", "chip yellow", fixer?.autoLeft ? "starting soon" : "waiting for tomorrow's builds"));
+        item.append(head);
+        if (i.text) item.append(el("p", "fb-text", i.text));
+        const meta = el("div", "bug-meta");
+        meta.append(el("span", "", `by ${i.name} · ${ago(i.at)}`), el("span", "", `👍 ${i.backers} backer${i.backers === 1 ? "" : "s"}: ${i.voters.join(", ")}`));
+        item.append(meta);
+        if (job && job.status !== "rejected") item.append(fixBox(job));
+
+        const btns = el("div", "bug-btns");
+        const busy = job && ["queued", "running", "ready"].includes(job.status);
+        if (!busy && fixer?.ready && !i.hidden && i.state !== "live") {
+          const b = el("button", "btn primary", job ? "🔧 Build it again" : "🔧 Build now");
+          b.addEventListener("click", () => fixAction({ action: "build", ideaId: i.id }, b, job ? null : `Have Claude build “${i.title}” now?`));
+          btns.append(b);
+        }
+        const hide = el("button", "btn ghost", i.hidden ? "↩ Show on the page" : "🙈 Hide");
+        hide.title = "Hidden ideas don't show on the public page and don't get built";
+        hide.addEventListener("click", async () => {
+          if ((await post({ action: "idea-hide", id: i.id, hidden: !i.hidden })).ok) (i.hidden = !i.hidden), renderIdeas();
+        });
+        const del = el("button", "btn ghost", "🗑 Delete");
+        del.addEventListener("click", async () => {
+          if (!confirm("Delete this idea and its votes for good?")) return;
+          if ((await post({ action: "idea-delete", id: i.id })).ok) (data.ideas = data.ideas.filter((x) => x !== i)), renderIdeas();
+        });
+        if (!busy) btns.append(hide, del);
+        item.append(btns);
+        root.append(item);
+      }
+    }
+
+    for (const b of document.querySelectorAll("#idea-filter button"))
+      b.addEventListener("click", () => {
+        ideaFilter = b.dataset.f;
+        for (const x of document.querySelectorAll("#idea-filter button")) x.classList.toggle("on", x === b);
+        renderIdeas();
+      });
+
     function render() {
       renderFeedback();
+      renderBugs();
+      renderIdeas();
       renderTiles();
       renderPlayers();
       renderDays();
@@ -679,11 +1102,27 @@
       }
     }
 
-    $("#refresh").addEventListener("click", load);
+    $("#refresh").addEventListener("click", () => Promise.all([load(), loadFixer()]));
     $("#search").addEventListener("input", () => data && renderPlayers());
-    await Promise.all([loadPortraits(), load()]);
+    await Promise.all([loadPortraits(), load(), loadFixer()]);
     if (data) render();
     if (location.hash === "#feedback") $("#feedback-panel").scrollIntoView({ behavior: "smooth" });
+    if (location.hash === "#bugs") $("#bugs-panel").scrollIntoView({ behavior: "smooth" });
+    const idea = location.hash.match(/^#idea-(\d+)$/);
+    if (idea && data) {
+      ideaFilter = "all";
+      for (const x of document.querySelectorAll("#idea-filter button")) x.classList.toggle("on", x.dataset.f === "all");
+      renderIdeas();
+      document.getElementById("idea-" + idea[1])?.scrollIntoView({ behavior: "smooth" });
+    }
+    const linked = location.hash.match(/^#bug-(\d+)$/);
+    if (linked && data) {
+      bugFilter = "all";
+      for (const x of document.querySelectorAll("#bug-filter button")) x.classList.toggle("on", x.dataset.f === "all");
+      openBugs.add(Number(linked[1]));
+      renderBugs();
+      document.getElementById("bug-" + linked[1])?.scrollIntoView({ behavior: "smooth" });
+    }
   </script>
 </body>
 </html>

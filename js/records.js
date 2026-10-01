@@ -25,7 +25,7 @@ export function serverRequest(msg, timeoutMs = 8000) {
         return;
       }
       if (m.t === "welcome") ws.send(JSON.stringify(msg));
-      else if (["records", "daily", "ghost", "ok", "push-key", "push-ok", "account"].includes(m.t)) {
+      else if (["records", "daily", "ghost", "ok", "push-key", "push-ok", "account", "beaten", "gchal"].includes(m.t)) {
         clearTimeout(timer);
         ws.close();
         resolve(m);

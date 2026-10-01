@@ -1,14 +1,14 @@
 // A single race: glues simulation, rendering, HUD, audio, input and network.
 import * as THREE from "three";
-import { RaceSim, COUNTDOWN } from "./sim/race.js?v=19";
-import { RaceView } from "./view/raceview.js?v=23";
-import { buildKart } from "./view/models.js?v=20";
-import { TRACKS, CHARACTERS } from "./data.js?v=17";
+import { RaceSim, COUNTDOWN } from "./sim/race.js?v=21";
+import { RaceView } from "./view/raceview.js?v=27";
+import { buildKart } from "./view/models.js?v=24";
+import { TRACKS, CHARACTERS } from "./data.js?v=19";
 import { audio } from "./audio.js?v=11";
 import { input } from "./input.js?v=6";
 import { packKart, applyFlags } from "./net.js?v=7";
-import { onBoostPad } from "./sim/kart.js?v=18";
-import { ordinal } from "./hud.js?v=22";
+import { onBoostPad } from "./sim/kart.js?v=20";
+import { ordinal } from "./hud.js?v=24";
 import { labelTexture } from "./view/textures.js?v=8";
 import { Tutorial } from "./tutorial.js?v=4";
 import { ReplayRecorder, ReplayPlayer } from "./replay.js?v=5";
@@ -74,7 +74,7 @@ export class RaceSession {
     this.ghosts = [];
     if (cfg.mode === "tt") {
       if (cfg.ghost) this.setupGhost(cfg.ghost);
-      if (cfg.recordGhost) this.setupGhost(cfg.recordGhost, `#${cfg.recordGhost.rank} ${cfg.recordGhost.name}`);
+      if (cfg.recordGhost) this.setupGhost(cfg.recordGhost, cfg.recordGhost.label || `#${cfg.recordGhost.rank} ${cfg.recordGhost.name}`);
     }
   }
 

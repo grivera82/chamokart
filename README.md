@@ -107,15 +107,45 @@ The server imports the same file to check that a submitted run belongs to today'
 
 ## Stats page
 
-`/chamokart/stats/` is a private dashboard that shows each player's visits, races, results, IP address and location.
+`/chamokart/dashboard/` is a private dashboard that shows each player's visits, races, results, IP address and location.
 nginx protects it with basic auth, using the password file `/etc/nginx/chamokart-stats.htpasswd`.
 To add or change a login, run `htpasswd -B /etc/nginx/chamokart-stats.htpasswd <user>`.
+On the tailnet it needs no password: `https://<this machine's tailnet name>:8443/chamokart/dashboard/`. `tailscale serve --https=8443` proxies that to a localhost-only nginx site, `/etc/nginx/sites-available/chamokart-tailnet`.
 
 - **What the game reports:** a `hello` on every load, each finished Grand Prix, Versus or Time Trial race, and each finished cup. Each report goes over a short-lived WebSocket.
 - **Online races:** recorded by the server itself when each race ends.
 - **Storage:** `$STATE_DIRECTORY/stats.json`, which is `/var/lib/chamokart/stats.json` in production.
 - **Location data:** comes from Cloudflare's request headers. `CF-Connecting-IP` and `CF-IPCountry` are always sent. City and region need Cloudflare's *Add visitor location headers* managed transform.
-- **Data endpoint:** the page loads its data from `/chamokart/stats/data`. nginx proxies that to `127.0.0.1:8792/stats`, behind the same password.
+- **Data endpoint:** the page loads its data from `/chamokart/dashboard/data`. nginx proxies that to `127.0.0.1:8792/stats`, behind the same password.
+
+## Crash reports and Claude's fixes
+
+The game reports its own uncaught errors (`js/crash.js`, a plain script that loads before the modules, so it also catches errors while they load).
+It only reports errors from the game's own files, at most 5 per page load, with the stack, what the player was doing (`window.ckCrashContext` in `main.js`) and the last taps and screens (`window.ckCrumb`).
+
+`bugs.mjs` in the server groups the same error from the same place in the code into one bug, and keeps the latest 5 reports of each in `$STATE_DIRECTORY/bugs.json`.
+They're listed under 🐞 Bugs on the dashboard. Devices with dashboard notifications on get a ping for each new bug.
+
+**🔧 Fix with Claude** hands a bug to the fixer service (`/opt/chamokart-fixer`, see its README):
+
+1. Claude reproduces and fixes the bug in a locked-down copy of the game.
+2. You review its report and diff, then approve, ask for changes, or reject.
+3. An approved fix goes live, and deployed fixes can be rolled back.
+
+## Feature ideas
+
+Players post ideas and vote for them at `/chamokart/features/` (`features/index.html`). The page talks to the server over the usual WebSocket (`ideas`, `idea` and `vote` messages).
+`features.mjs` stores ideas in `$STATE_DIRECTORY/features.json`.
+
+- **Who can take part:** only players the stats know (they've loaded the game on that device) can post or vote.
+  - Each player can post 3 ideas a day, and 40 a day in total.
+  - The author's own vote is counted automatically.
+- **When an idea gets built:** once `VOTES_TO_BUILD` (2) different players back it, the fixer has Claude build it.
+  - Voters on the same internet connection count once, going by a hash of their IP.
+  - Behind Cloudflare, that IP comes from `CF-Connecting-IP`. nginx only passes that header on for requests that really come from Cloudflare (`/etc/nginx/conf.d/cloudflare-ips.conf`).
+- **Automatic build limits:** at most 3 ideas a day are built automatically, and each idea only once. Anything else you start with **🔧 Build now** on the dashboard.
+- **After Claude builds it:** it adds a "What's new" entry, and you review the feature under 💡 Ideas on the dashboard. The page shows players where each idea stands: open, being built, being checked, live, or not planned.
+- **Moderation:** hidden ideas disappear from the page and never get built.
 
 ## Publishing a "What's new" update
 
@@ -155,7 +185,11 @@ js/look.js        the Custom racer's look: options, validation (shared with serv
 js/view/custom.js builds the Custom racer's avatar and car dressing from a look
 js/sharecard.js   the 📸 Share picture of a result (drawn on a canvas)
 stats.mjs         player stats for the private stats page
-stats/            the stats page (password-protected)
+bugs.mjs          crash reports grouped into bugs, for the dashboard
+features.mjs      players' feature ideas and votes
+features/         the public ideas page
+js/crash.js       reports the game's uncaught errors (a plain script, loads first)
+dashboard/        the stats dashboard (password-protected)
 ```
 
 Each client simulates its own kart (and the host's CPUs); the server relays kart states and items, keeps the race clock and decides the official results.

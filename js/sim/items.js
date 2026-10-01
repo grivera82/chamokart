@@ -1,6 +1,6 @@
 // Item boxes, coins and live item objects (bananas, cocos, shells, bombs, fireballs...).
-import { rollItem, EIGHT } from "../data.js?v=17";
-import { GRAVITY } from "./kart.js?v=18";
+import { rollItem, EIGHT } from "../data.js?v=19";
+import { GRAVITY } from "./kart.js?v=20";
 
 const BOX_RESPAWN = 2.4;
 const COIN_RESPAWN = 12;

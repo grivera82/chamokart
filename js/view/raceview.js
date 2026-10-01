@@ -1,10 +1,10 @@
 // Renders a RaceSim: karts, items, particles, camera direction.
 import * as THREE from "three";
-import { buildWorld } from "./world.js?v=19";
-import { buildKart, buildBanana, buildCoco, buildItemBox, buildCoin, WHEEL_POS, mat, poseTransformer, TRANSFORM_TIME, buildBlueShell, buildBomb, buildFireball, buildBoomerang, buildBulletBill, buildPiranha, buildBoo } from "./models.js?v=20";
+import { buildWorld } from "./world.js?v=23";
+import { buildKart, buildBanana, buildCoco, buildItemBox, buildCoin, WHEEL_POS, mat, poseTransformer, TRANSFORM_TIME, buildBlueShell, buildBomb, buildFireball, buildBoomerang, buildBulletBill, buildPiranha, buildBoo } from "./models.js?v=24";
 import { Particles } from "./particles.js?v=8";
 import { shadowTexture, labelTexture } from "./textures.js?v=8";
-import { COUNTDOWN } from "../sim/race.js?v=19";
+import { COUNTDOWN } from "../sim/race.js?v=21";
 
 const TAU = Math.PI * 2;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -174,6 +174,10 @@ class KartView {
     ud.steeringWheel.rotation.z = k.steerVis * 1.2;
     ud.driver.rotation.z = k.steerVis * 0.12;
     ud.driver.userData.head.rotation.y = -k.steerVis * 0.35;
+    if (ud.passenger) {
+      ud.passenger.rotation.z = k.steerVis * 0.1;
+      ud.passenger.userData.head.rotation.y = -k.steerVis * 0.3 + Math.sin(time * 1.3) * 0.12;
+    }
     if (this.cat) {
       this.meowT = Math.max(0, this.meowT - dt);
       const e = this.meowT > 0 ? lookEnvelope(this.meowT, MEOW_TIME) : 0;

@@ -2,12 +2,12 @@
 // of its race over the presence connection: the grid once, then every kart ten times a second,
 // the items on the road and what just happened. The watcher's game (SpectateSession) builds the
 // same track and plays the stream back a moment behind, like the online remote karts.
-import { RaceSim } from "./sim/race.js?v=19";
-import { RaceView } from "./view/raceview.js?v=23";
-import { TRACKS, CHARACTERS } from "./data.js?v=17";
+import { RaceSim } from "./sim/race.js?v=21";
+import { RaceView } from "./view/raceview.js?v=27";
+import { TRACKS, CHARACTERS } from "./data.js?v=19";
 import { audio } from "./audio.js?v=11";
 import { packKart } from "./net.js?v=7";
-import { ordinal } from "./hud.js?v=22";
+import { ordinal } from "./hud.js?v=24";
 import { poseKarts, VISUAL } from "./replay.js?v=5";
 
 const CAST_HZ = 10;

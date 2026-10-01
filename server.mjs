@@ -3,12 +3,14 @@
 // client; this server relays state/events, keeps the race clock and decides
 // the official results.
 import { createServer } from "node:http";
-import { readFileSync, writeFileSync, renameSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync, mkdirSync, readdirSync, unlinkSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { WebSocketServer } from "ws";
 import { createHash, randomInt } from "node:crypto";
 import { createStats, geoFromRequest } from "./stats.mjs";
 import { createPush } from "./push.mjs";
+import { createBugs } from "./bugs.mjs";
+import { createFeatures } from "./features.mjs";
 import { dailyChallenge, dailyId, isDailyId, DAILY_LAPS } from "./js/daily.js";
 import { CUSTOM, cleanLook } from "./js/look.js";
 
@@ -30,6 +32,15 @@ const EVENT_TYPES = new Set(["spawn", "hit", "box", "bolt", "splat", "gone", "ho
 const STATE_DIR = process.env.STATE_DIRECTORY || ".";
 const RECORDS_FILE = process.env.RECORDS_FILE || join(STATE_DIR, "records.json");
 const RECORDS_TOP = 10;
+// Notes for players who were passed on a board, handed over the next time they open the game
+const BEATEN_FILE = process.env.BEATEN_FILE || join(STATE_DIR, "beaten.json");
+const BEATEN_KEEP_MS = 60 * 86400000;
+// Ghost challenges: a Time Trial run shared as a link (#ghost=CODE) for friends to race against
+const CHALLENGE_DIR = join(STATE_DIR, "challenges");
+const CHALLENGE_LEN = 7;
+const CHALLENGE_KEEP_MS = 120 * 86400000; // since the last time anyone raced it
+const CHALLENGE_TRIES_KEPT = 50;
+const CHALLENGES_PER_DAY = 30; // made per player
 // Ghosts (the whole Time Trial run a board lap came from), one file per board entry.
 const GHOST_DIR = join(STATE_DIR, "ghosts");
 const GHOST_HZ = 20;
@@ -56,7 +67,11 @@ const FEEDBACK_FILE = process.env.FEEDBACK_FILE || join(STATE_DIR, "feedback.jso
 const FEEDBACK_MAX = 1000; // characters per note
 const FEEDBACK_KEPT = 500;
 const FEEDBACK_PER_DAY = 20; // per player
-const BOT_NAMES = ["Chamo", "agenteintermediario", "Spider-Man", "Lucas", "Bumblebee", "Chicky", "Dorito", "Skully"];
+// Crash reports from the game (js/crash.js), grouped into bugs on the dashboard
+const BUGS_FILE = process.env.BUGS_FILE || join(STATE_DIR, "bugs.json");
+// Feature ideas and votes from the public /chamokart/features page
+const FEATURES_FILE = process.env.FEATURES_FILE || join(STATE_DIR, "features.json");
+const BOT_NAMES = ["Chamo", "Momo", "Bao", "Lucas", "Bumblebee", "Chicky", "Dorito", "Skully"];
 
 const clients = new Map(); // id -> client
 const rooms = new Map(); // code -> room
@@ -382,10 +397,13 @@ function boardView(board, pid) {
 const recordsView = (pid, extra) => ({ t: "records", laps: boardView("laps", pid), runs: boardView("runs", pid), ...extra });
 
 // Puts a player's time on a board if it beats their entry, keeping the top RECORDS_TOP.
-// Returns whether the entry improved, and calls onDrop for entries that fall off.
-function recordTime(list, pid, time, fields, onDrop) {
+// Returns whether the entry improved, calls onPass(entry, oldRank) for everyone the player
+// just overtook and onDrop for entries that fall off.
+function recordTime(list, pid, time, fields, onDrop, onPass) {
   let entry = list.find((e) => e.pid === pid);
   if (entry && time >= entry.time) return false;
+  const ahead = entry ? list.indexOf(entry) : list.length;
+  list.slice(0, ahead).forEach((e, i) => e.time > time && onPass?.(e, i + 1));
   if (!entry) list.push((entry = { pid }));
   Object.assign(entry, fields, { time, at: now() });
   list.sort((a, b) => a.time - b.time);
@@ -471,7 +489,8 @@ function submitLaps(client, msg) {
   let changed = false;
   if (times.length) {
     const lapList = records.laps[track];
-    if (recordTime(lapList, msg.pid, round(Math.min(...times)), racer, (e) => dropGhost(track, e.pid))) {
+    const lap = round(Math.min(...times));
+    if (recordTime(lapList, msg.pid, lap, racer, (e) => dropGhost(track, e.pid), (e, was) => noteBeaten(e.pid, "laps", track, was, racer, lap))) {
       changed = true;
       // The run this lap came from becomes the entry's ghost (or it has none).
       const entry = lapList.find((e) => e.pid === msg.pid);
@@ -484,7 +503,8 @@ function submitLaps(client, msg) {
   // Only a complete Time Trial with every lap plausible counts as a full race.
   if (all.length === TT_LAPS && times.length === TT_LAPS) {
     const laps = times.map(round);
-    if (recordTime(records.runs[track], msg.pid, round(times.reduce((a, b) => a + b, 0)), { ...racer, laps })) changed = true;
+    const run = round(times.reduce((a, b) => a + b, 0));
+    if (recordTime(records.runs[track], msg.pid, run, { ...racer, laps }, null, (e, was) => noteBeaten(e.pid, "runs", track, was, racer, run))) changed = true;
   }
   // Renaming yourself updates your entries even without a faster time.
   for (const board of ["laps", "runs"])
@@ -496,6 +516,194 @@ function submitLaps(client, msg) {
   if (changed) saveRecords();
   const rankOn = (board) => records[board][track].findIndex((e) => e.pid === msg.pid) + 1 || null;
   send(client, recordsView(msg.pid, { track, rank: rankOn("laps"), runRank: rankOn("runs") }));
+}
+
+// ---------------------------------------------------------------- beaten records
+// Someone passed you on a board: you hear about it the next time you open the game. One note
+// per board and track, with the rank you had before the first pass and who passed you since.
+
+const beaten = loadBeaten();
+let beatenSaveTimer = null;
+
+function loadBeaten() {
+  try {
+    const d = JSON.parse(readFileSync(BEATEN_FILE, "utf8"));
+    const old = now() - BEATEN_KEEP_MS;
+    for (const [pid, notes] of Object.entries(d)) {
+      for (const [k, n] of Object.entries(notes)) if (!(n.at > old)) delete notes[k];
+      if (!Object.keys(notes).length) delete d[pid];
+    }
+    return d;
+  } catch (err) {
+    if (err.code !== "ENOENT") console.error("beaten: can't read", BEATEN_FILE, err.message);
+    return {};
+  }
+}
+
+function saveBeaten() {
+  clearTimeout(beatenSaveTimer);
+  beatenSaveTimer = setTimeout(() => {
+    try {
+      writeFileSync(BEATEN_FILE + ".tmp", JSON.stringify(beaten));
+      renameSync(BEATEN_FILE + ".tmp", BEATEN_FILE);
+    } catch (err) {
+      console.error("beaten: can't write", BEATEN_FILE, err.message);
+    }
+  }, 500);
+}
+
+function noteBeaten(pid, board, track, was, racer, time) {
+  const notes = (beaten[pid] ||= {});
+  const n = (notes[board + track] ||= { board, track, was, by: [] });
+  n.by = [{ name: racer.name, char: racer.char, look: racer.look, time }, ...n.by.filter((b) => b.name !== racer.name)].slice(0, 3);
+  n.at = now();
+  saveBeaten();
+}
+
+// The player's notes (once: reading them clears them), minus any rank they've already won back.
+function beatenView(pid) {
+  const notes = validPid(pid) && beaten[pid];
+  if (!notes) return { t: "beaten", list: [] };
+  delete beaten[pid];
+  saveBeaten();
+  const list = [];
+  for (const n of Object.values(notes)) {
+    if (n.kind === "ghost") {
+      list.push(n);
+      continue;
+    }
+    const board = records[n.board]?.[n.track];
+    if (!board) continue;
+    const i = board.findIndex((e) => e.pid === pid);
+    if (i >= 0 && i + 1 <= n.was) continue;
+    const top = board[0];
+    list.push({ board: n.board, track: n.track, was: n.was, rank: i + 1 || null, mine: board[i]?.time ?? null, by: n.by, top: top && { name: top.name, char: top.char, look: top.look, time: top.time }, at: n.at });
+  }
+  list.sort((a, b) => (a.kind === "ghost") - (b.kind === "ghost") || a.was - b.was || b.at - a.at);
+  return { t: "beaten", list };
+}
+
+// ---------------------------------------------------------------- ghost challenges
+// A player shares one of their Time Trial runs as a link. Whoever opens it races that ghost on
+// the same track; everyone's best try is kept on the challenge, and its maker hears about each
+// new best through the beaten notes. One file per challenge in CHALLENGE_DIR.
+
+const challengesMade = new Map(); // pid -> { day, n }
+const ownerOf = (ch) => accounts.alias[ch.pid] || ch.pid; // the maker may have merged into another id since
+
+(function pruneChallenges() {
+  try {
+    mkdirSync(CHALLENGE_DIR, { recursive: true });
+    const old = now() - CHALLENGE_KEEP_MS;
+    for (const f of readdirSync(CHALLENGE_DIR)) {
+      const file = join(CHALLENGE_DIR, f);
+      if (statSync(file).mtimeMs < old) unlinkSync(file);
+    }
+  } catch (err) {
+    console.error("challenges: can't read", CHALLENGE_DIR, err.message);
+  }
+})();
+
+const validChallengeCode = (c) => typeof c === "string" && c.length === CHALLENGE_LEN && [...c].every((ch) => CODE_CHARS.includes(ch));
+// The same run always gets the same code, so sharing it twice doesn't make two challenges.
+function challengeCode(pid, track, time) {
+  const h = createHash("sha256").update(`ghost:${pid}:${track}:${time}`).digest();
+  return Array.from(h.subarray(0, CHALLENGE_LEN), (b) => CODE_CHARS[b % CODE_CHARS.length]).join("");
+}
+
+function loadChallenge(code) {
+  if (!validChallengeCode(code)) return null;
+  try {
+    return JSON.parse(readFileSync(join(CHALLENGE_DIR, code + ".json"), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function saveChallenge(ch) {
+  const file = join(CHALLENGE_DIR, ch.code + ".json");
+  try {
+    writeFileSync(file + ".tmp", JSON.stringify(ch));
+    renameSync(file + ".tmp", file);
+    return true;
+  } catch (err) {
+    console.error("challenges: can't write", ch.code, err.message);
+    return false;
+  }
+}
+
+// Three plausible laps for a track, or null
+function ttLaps(track, raw) {
+  if (!Array.isArray(raw) || raw.length !== TT_LAPS) return null;
+  const laps = raw.map((t) => Math.round(Number(t) * 1000) / 1000);
+  return laps.every((t) => Number.isFinite(t) && t >= MIN_LAP_S[track] && t <= MAX_LAP_S) ? laps : null;
+}
+// The run's finish time as the race clock had it: it must agree with its laps
+function runTime(laps, raw) {
+  const sum = laps.reduce((a, b) => a + b, 0);
+  const t = Number(raw);
+  return Math.round((Number.isFinite(t) && Math.abs(t - sum) <= 0.1 ? t : sum) * 1000) / 1000;
+}
+
+function triesView(ch, pid) {
+  return ch.tries.slice(0, 10).map((e) => ({ name: e.name, char: e.char, look: e.look, time: e.time, mine: e.pid === pid || undefined }));
+}
+
+function newChallenge(client, msg) {
+  const track = clampInt(msg.track, 0, TRACK_COUNT - 1, -1);
+  const laps = track === Number(msg.track) && ttLaps(track, msg.laps);
+  if (!validPid(msg.pid) || !laps || !validGhost(msg.ghost, laps)) return send(client, { t: "gchal", ok: false, error: "bad" });
+  const time = runTime(laps, msg.ghost.time);
+  const code = challengeCode(msg.pid, track, time);
+  if (existsSync(join(CHALLENGE_DIR, code + ".json"))) return send(client, { t: "gchal", ok: true, code });
+  const day = dailyId();
+  const made = challengesMade.get(msg.pid);
+  if (made?.day === day && made.n >= CHALLENGES_PER_DAY) return send(client, { t: "gchal", ok: false, error: "slow" });
+  challengesMade.set(msg.pid, { day, n: made?.day === day ? made.n + 1 : 1 });
+  const char = clampInt(msg.char, 0, CHARACTER_COUNT - 1, 0);
+  const g = msg.ghost;
+  const ch = { code, pid: msg.pid, name: cleanName(msg.name), char, kart: clampInt(msg.kart, 0, KART_COUNT - 1, 0), look: lookOf(char, msg.look), track, time, laps, frames: g.frames, at: now(), tries: [] };
+  if (!saveChallenge(ch)) return send(client, { t: "gchal", ok: false, error: "bad" });
+  send(client, { t: "gchal", ok: true, code });
+}
+
+function challengeView(msg) {
+  const ch = loadChallenge(msg.code);
+  if (!ch) return { t: "gchal", ok: false, error: "gone" };
+  return { t: "gchal", ok: true, code: ch.code, track: ch.track, name: ch.name, char: ch.char, kart: ch.kart, look: lookOf(ch.char, ch.look), time: ch.time, laps: ch.laps, frames: ch.frames, mine: ownerOf(ch) === msg.pid || undefined, tries: triesView(ch, msg.pid) };
+}
+
+// A finished race against a challenge: keep the racer's best try and tell the maker.
+function challengeTry(client, msg) {
+  const ch = loadChallenge(msg.code);
+  const laps = ch && ttLaps(ch.track, msg.laps);
+  if (!ch || !validPid(msg.pid) || !laps || now() - (client.lastTry || 0) < 20000) return send(client, { t: "gchal", ok: false, error: "bad" });
+  client.lastTry = now();
+  const time = runTime(laps, msg.time);
+  const char = clampInt(msg.char, 0, CHARACTER_COUNT - 1, 0);
+  const racer = { name: cleanName(msg.name), char, look: lookOf(char, msg.look) };
+  let e = ch.tries.find((x) => x.pid === msg.pid);
+  const improved = !e || time < e.time;
+  if (improved) {
+    if (!e) ch.tries.push((e = { pid: msg.pid }));
+    Object.assign(e, racer, { time, at: now() });
+    ch.tries.sort((a, b) => a.time - b.time);
+    ch.tries.length = Math.min(ch.tries.length, CHALLENGE_TRIES_KEPT);
+    saveChallenge(ch);
+    if (msg.pid !== ownerOf(ch)) noteChallenge(ch, { ...racer, time });
+  }
+  const rank = ch.tries.findIndex((x) => x.pid === msg.pid) + 1 || null;
+  send(client, { t: "gchal", ok: true, code: ch.code, rank, count: ch.tries.length, best: improved, tries: triesView(ch, msg.pid) });
+}
+
+// The maker's note: one per challenge, about whoever raced it last
+function noteChallenge(ch, by) {
+  const notes = (beaten[ownerOf(ch)] ||= {});
+  const key = "g" + ch.code;
+  const n = (notes[key] ||= { kind: "ghost", code: ch.code, track: ch.track, mine: ch.time, by: [] });
+  n.by = [by, ...n.by.filter((b) => b.name !== by.name)].slice(0, 3);
+  n.at = now();
+  saveBeaten();
 }
 
 // ---------------------------------------------------------------- daily challenge
@@ -714,6 +922,11 @@ function mergePlayer(from, to) {
     list.sort((x, y) => x.time - y.time);
   }
   saveDaily();
+  if (beaten[from]) {
+    beaten[to] = { ...beaten[from], ...beaten[to] };
+    delete beaten[from];
+    saveBeaten();
+  }
   stats.merge(from, to);
   push.merge(from, to, uidOf(to));
   // The old id now means the new one (as does anything that was merged into it before)
@@ -850,11 +1063,12 @@ function submitFeedback(client, msg) {
   feedback.push(entry);
   if (feedback.length > FEEDBACK_KEPT) feedback.splice(0, feedback.length - FEEDBACK_KEPT);
   saveFeedback();
-  push.admins({ title: `💬 Feedback from ${entry.name}`, body: text.slice(0, 140), url: "/chamokart/stats/#feedback", tag: "feedback-" + entry.id });
+  push.admins({ title: `💬 Feedback from ${entry.name}`, body: text.slice(0, 140), url: "/chamokart/dashboard/#feedback", tag: "feedback-" + entry.id });
   send(client, { t: "ok", ok: true });
 }
 
-// The stats page's buttons (POST to /chamokart/stats/data, behind its password)
+// The stats page's buttons (POST to /chamokart/dashboard/data, behind its password), and the
+// fixer's bug status updates (it posts here directly, on localhost)
 function statsAction(a) {
   switch (a?.action) {
     case "fb-done": {
@@ -871,6 +1085,14 @@ function statsAction(a) {
       saveFeedback();
       return { ok: true };
     }
+    case "bug-ignore":
+    case "bug-delete":
+    case "bug-fix":
+      return bugs.action(a);
+    case "idea-hide":
+    case "idea-delete":
+    case "idea-build":
+      return features.action(a);
     case "admin-sub":
       return { ok: push.adminSubscribe(a.sub) };
     case "admin-unsub":
@@ -886,6 +1108,8 @@ function statsAction(a) {
 // public id (uid) derived from their private one, which stays secret.
 
 const push = createPush({ dir: STATE_DIR, subject: "https://jgrivera.com/chamokart/" });
+const bugs = createBugs({ file: BUGS_FILE, notify: (m) => push.admins(m) });
+const features = createFeatures({ file: FEATURES_FILE, notify: (m) => push.admins(m) });
 const serverStarted = now();
 const PLAYING_GRACE_MS = 5 * 60000; // after a restart everyone reconnects: don't announce them all
 const AWAY_BEFORE_ANNOUNCE_MS = 20 * 60000;
@@ -1063,6 +1287,42 @@ function onCast(client, msg) {
   for (const w of ws) send(w, data);
 }
 
+// Chat around a live race: a watcher's message (to: the racer they watch) reaches the racer and
+// everyone else watching; the racer's own message (no to) reaches all their watchers.
+function onWatchChat(client, msg) {
+  const text = String(msg.text || "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 120);
+  if (!text || now() - (client.lastWatchChat || 0) < 800) return;
+  const room = watchRoom(client, msg);
+  if (!room) return;
+  client.lastWatchChat = now();
+  const data = JSON.stringify({ t: "wchat", racer: room.racer, uid: client.uid, name: client.name, text });
+  for (const c of room.audience) send(c, data);
+}
+
+// Quick emoji reactions, same audience as the chat (the emoji list lives in main.js REACTIONS)
+const REACTION_COUNT = 6;
+function onWatchReact(client, msg) {
+  const e = Number.isInteger(msg.e) && msg.e >= 0 && msg.e < REACTION_COUNT ? msg.e : null;
+  if (e == null || now() - (client.lastWatchReact || 0) < 200) return;
+  const room = watchRoom(client, msg);
+  if (!room) return;
+  client.lastWatchReact = now();
+  const data = JSON.stringify({ t: "wreact", racer: room.racer, uid: client.uid, name: client.name, e });
+  for (const c of room.audience) send(c, data);
+}
+
+// Who hears a watcher's message (to: the racer they watch) or a racer's own (no to): the
+// racer's tabs plus everyone watching. Null unless both sides are there.
+function watchRoom(client, msg) {
+  if (!client.presence) return null;
+  const racer = msg.to ? (msg.to === client.watching ? client.watching : null) : client.uid;
+  if (!racer) return null;
+  const watchers = watchersOf(racer);
+  const racers = presenceClients().filter((c) => c.uid === racer);
+  if (!racers.length || !watchers.length) return null;
+  return { racer, audience: new Set([...racers, ...watchers]) };
+}
+
 // ---------------------------------------------------------------- messages
 
 function handle(client, msg) {
@@ -1091,6 +1351,14 @@ function handle(client, msg) {
       return send(client, recordsView(msg.pid));
     case "laps":
       return submitLaps(client, msg);
+    case "beaten":
+      return send(client, beatenView(msg.pid));
+    case "gchal-new":
+      return newChallenge(client, msg);
+    case "gchal-get":
+      return send(client, challengeView(msg));
+    case "gchal-try":
+      return challengeTry(client, msg);
     case "presence":
       return onPresence(client, msg);
     case "challenge":
@@ -1101,6 +1369,10 @@ function handle(client, msg) {
       return onWatch(client, msg);
     case "cast":
       return onCast(client, msg);
+    case "wchat":
+      return onWatchChat(client, msg);
+    case "wreact":
+      return onWatchReact(client, msg);
     case "push-key":
       return send(client, { t: "push-key", key: push.publicKey });
     case "push-sub":
@@ -1143,6 +1415,19 @@ function handle(client, msg) {
     }
     case "feedback":
       return submitFeedback(client, msg);
+    case "crash":
+      if (validPid(msg.pid)) bugs.report(msg.pid, msg, stats.info(msg.pid), client.geo);
+      return send(client, { t: "ok" });
+    // The features page: list ideas, post one, vote. Only players the stats know (who've
+    // loaded the game) can post or vote.
+    case "ideas":
+      return send(client, { t: "ideas", list: features.publicView(validPid(msg.pid) ? msg.pid : null), played: validPid(msg.pid) && !!stats.info(msg.pid) });
+    case "idea":
+      if (!validPid(msg.pid)) return send(client, { t: "idea-ok", ok: false });
+      return send(client, { t: "idea-ok", ...features.submit(msg.pid, msg, stats.info(msg.pid), client.geo) });
+    case "vote":
+      if (!validPid(msg.pid)) return send(client, { t: "idea-ok", ok: false });
+      return send(client, { t: "idea-ok", ...features.vote(msg.pid, msg, stats.info(msg.pid), client.geo) });
     case "recname": {
       // Renaming yourself updates your entries on every track and board.
       if (!validPid(msg.pid)) return;
@@ -1268,7 +1553,7 @@ function handle(client, msg) {
 // ---------------------------------------------------------------- server
 
 const httpServer = createServer((req, res) => {
-  // Stats for /chamokart/stats. The server only listens on localhost and nginx only
+  // Stats for /chamokart/dashboard. The server only listens on localhost and nginx only
   // proxies this path behind the stats page's password (the public ws route always maps to "/").
   if (req.url === "/stats" && req.method === "POST") {
     // Only the stats page sends this header (a form on another site can't), so its password
@@ -1295,7 +1580,7 @@ const httpServer = createServer((req, res) => {
   if (req.url === "/stats") {
     res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store, private" });
     const fb = [...feedback].reverse();
-    res.end(JSON.stringify({ ...stats.view(), records: records.laps, runs: records.runs, feedback: fb, pushKey: push.publicKey, adminEndpoints: push.adminEndpoints(), online: { clients: clients.size, rooms: rooms.size }, now: now() }));
+    res.end(JSON.stringify({ ...stats.view(), records: records.laps, runs: records.runs, feedback: fb, bugs: bugs.view(), ideas: features.view((pid) => stats.info(pid)?.name), pushKey: push.publicKey, adminEndpoints: push.adminEndpoints(), online: { clients: clients.size, rooms: rooms.size }, now: now() }));
     return;
   }
   if (req.url === "/health" || req.url === "/") {
