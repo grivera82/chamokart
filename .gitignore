@@ -6,6 +6,7 @@ records.json
 daily.json
 stats.json
 push.json
+push-meta.json
 vapid.json
 accounts.json
 feedback.json

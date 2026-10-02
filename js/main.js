@@ -351,6 +351,7 @@ class App {
       this.openLink(pc[1].replace(/-/g, "").toUpperCase());
     }
     this.checkGhostHash();
+    this.checkDailyHash();
     this.syncAccount();
     this.fetchBeaten();
     this.startPresence();
@@ -489,6 +490,7 @@ class App {
     if (this.screen && push && this.screen !== id && !$("#" + this.screen).classList.contains("overlay")) this.history.push(this.screen);
     for (const s of $$(".screen")) s.classList.toggle("active", s.id === id);
     this.screen = id;
+    if (id !== "results") $("#notify-ask").hidden = true;
     window.ckCrumb?.("screen " + id);
     if (this.showroom) {
       this.showroom.editing = id === "custom";
@@ -502,6 +504,7 @@ class App {
   }
 
   hideScreens() {
+    $("#notify-ask").hidden = true;
     for (const s of $$(".screen")) s.classList.remove("active");
     this.screen = null;
   }
@@ -873,6 +876,10 @@ class App {
 
   // ------------------------------------------------------------------ events
   bindUI() {
+    $("#notify-prefs").addEventListener("change", (e) => {
+      const box = e.target.closest("[data-pref]");
+      if (box) this.setPushPref(box.dataset.pref, box.checked);
+    });
     document.addEventListener("click", (e) => {
       audio.unlock();
       if (this.settings.steer === "tilt" && !input.tilt.listening && !this.tiltAsked) {
@@ -1239,6 +1246,16 @@ class App {
         this.show(this.beatenFrom || "title", false);
         this.flow = "tt";
         this.startTimeTrial(Number(el.dataset.track));
+        break;
+      case "notify-ask-yes":
+        $("#notify-ask").hidden = true;
+        if (this.notifyAskIos) break;
+        audio.play("select");
+        this.enableNotify().then((ok) => ok && this.toast("🔔 Done! We'll let you know.", false, 3500));
+        break;
+      case "notify-ask-no":
+        audio.play("back");
+        $("#notify-ask").hidden = true;
         break;
       case "notify-toggle":
         this.toggleNotify();
@@ -1832,6 +1849,7 @@ class App {
         const where = TRACKS[cfg.track].name;
         const msg = m.runRank && m.rank ? `Your best race is #${m.runRank} and your best lap #${m.rank} on ${where}!` : m.runRank ? `Your best race is #${m.runRank} on ${where}!` : `Your best lap is #${m.rank} on ${where}!`;
         this.toast(`🏆 ${msg}`, false, 4000);
+        this.askNotify(`🔔 Want to know if someone beats your time on ${where}?`);
       })
       .catch(() => {});
   }
@@ -1945,6 +1963,7 @@ class App {
         button.textContent = `📅 You're #${m.me.rank} today!`;
         if (this.shareInfo) this.shareInfo.badge = `#${m.me.rank} of ${m.count} today`;
         if (isBest) this.toast(`📅 You're #${m.me.rank} of ${m.count} in today's challenge!`, false, 4000);
+        this.askNotify("🔔 Get a heads-up when tomorrow's challenge is up, and if someone beats your time?");
       })
       .catch(() => {});
   }
@@ -2070,6 +2089,7 @@ class App {
         this.openLink(pc[1].replace(/-/g, "").toUpperCase());
       }
       this.checkGhostHash();
+      this.checkDailyHash();
     });
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=1").catch(() => {});
   }
@@ -2115,6 +2135,8 @@ class App {
           .catch(() => {});
       if (this.screen === "players") this.renderPlayers();
       if (this.watch) this.presence.send({ t: "watch", to: this.watch.uid }); // reconnected: keep watching
+    } else if (t === "beaten-now") {
+      this.fetchBeaten(); // someone just passed us on a board: show it once we're on the menus
     } else if (t === "watchers") {
       this.setWatchers(m.names, m.fresh);
     } else if (t === "watch-ok") {
@@ -2214,12 +2236,86 @@ class App {
       $("#notify-text").textContent = "Notifications are blocked for this site. Allow them in your browser settings to turn them on.";
       btn.style.display = "none";
     } else if (this.pushOn && Notification.permission === "granted") {
-      $("#notify-text").textContent = "You'll get a notification when someone starts playing or challenges you.";
+      $("#notify-text").textContent = "Notifications are on for this device. Challenges always come through, and you pick the rest:";
       btn.textContent = "🔕 Turn off";
     } else {
-      $("#notify-text").textContent = "Get a notification when someone starts playing Chamo Kart, or challenges you to a race.";
+      $("#notify-text").textContent = "Get a notification when someone beats your record, when the Daily Challenge is up, when someone starts playing, or challenges you to a race.";
       btn.textContent = "🔔 Turn on";
     }
+    const on = supported && this.pushOn && Notification.permission === "granted";
+    $("#notify-prefs").hidden = !on;
+    const prefs = this.pushPrefs();
+    for (const box of $$("#notify-prefs input")) box.checked = prefs[box.dataset.pref];
+  }
+
+  // Which notifications this device wants (all of them unless switched off)
+  pushPrefs() {
+    return { playing: true, beaten: true, daily: true, ...store.get("pushPrefs", {}) };
+  }
+
+  // Right after a record: offer notifications, at most every few days (never when they're on
+  // or blocked). iPhones only get push from the Home Screen app, so they get that tip once.
+  askNotify(text) {
+    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+    this.notifyAskIos = false;
+    if (!supported) {
+      if (!ios || store.get("notifyIosTip", false)) return;
+      store.set("notifyIosTip", true);
+      this.notifyAskIos = true;
+      text = "📲 Tip: tap Share → Add to Home Screen, then play from there to get notified when someone beats your time.";
+    } else if (this.pushOn || Notification.permission === "denied" || Date.now() - store.get("notifyAskedAt", 0) < 4 * 86400000) return;
+    else store.set("notifyAskedAt", Date.now());
+    setTimeout(() => {
+      if (this.screen !== "results") return;
+      $("#notify-ask-text").textContent = text;
+      $("[data-action=notify-ask-yes]").textContent = this.notifyAskIos ? "Got it" : "🔔 Yes, tell me";
+      $("[data-action=notify-ask-no]").hidden = this.notifyAskIos;
+      $("#notify-ask").hidden = false;
+    }, 1500);
+  }
+
+  // Ask the browser, subscribe this device and tell the server (with its choices).
+  async enableNotify() {
+    try {
+      const reg = await navigator.serviceWorker.register("sw.js?v=1");
+      await navigator.serviceWorker.ready;
+      if ((await Notification.requestPermission()) !== "granted") {
+        this.toast("Notifications are blocked. Allow them for this site in your browser settings.", true);
+        return false;
+      }
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        const { key } = await serverRequest({ t: "push-key" });
+        const raw = atob(key.replace(/-/g, "+").replace(/_/g, "/"));
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, (c) => c.charCodeAt(0)) });
+      }
+      const m = await serverRequest({ t: "push-sub", pid: this.pid, sub: sub.toJSON(), prefs: this.pushPrefs() });
+      this.pushOn = !!m.ok;
+      if (!m.ok) this.toast("Couldn't turn on notifications right now.", true);
+      return this.pushOn;
+    } catch {
+      this.toast("Couldn't turn on notifications on this device.", true);
+      return false;
+    }
+  }
+
+  // A switch in the Players screen changed: save it and tell the server
+  async setPushPref(pref, on) {
+    store.set("pushPrefs", { ...this.pushPrefs(), [pref]: on });
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) await serverRequest({ t: "push-sub", pid: this.pid, sub: sub.toJSON(), prefs: this.pushPrefs() });
+    } catch {}
+  }
+
+  // A tapped "today's challenge" notification opens the Daily Challenge (#daily)
+  checkDailyHash() {
+    if (!/#daily\b/.test(location.hash) || this.session) return;
+    history.replaceState(null, "", location.pathname + location.search);
+    this.history = ["menu"];
+    this.openDaily();
   }
 
   async toggleNotify() {
@@ -2235,20 +2331,7 @@ class App {
         await serverRequest({ t: "push-unsub", pid: this.pid, endpoint });
         this.pushOn = false;
         this.toast("🔕 Notifications off.");
-      } else {
-        if ((await Notification.requestPermission()) !== "granted") {
-          this.toast("Notifications are blocked. Allow them for this site in your browser settings.", true);
-          return;
-        }
-        if (!sub) {
-          const { key } = await serverRequest({ t: "push-key" });
-          const raw = atob(key.replace(/-/g, "+").replace(/_/g, "/"));
-          sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, (c) => c.charCodeAt(0)) });
-        }
-        const m = await serverRequest({ t: "push-sub", pid: this.pid, sub: sub.toJSON() });
-        this.pushOn = !!m.ok;
-        this.toast(m.ok ? "🔔 Notifications on! We'll tell you when someone's playing." : "Couldn't turn on notifications right now.", !m.ok);
-      }
+      } else if (await this.enableNotify()) this.toast("🔔 Notifications on! Pick what you want to hear about below.", false, 4000);
     } catch {
       this.toast("Couldn't turn on notifications on this device.", true);
     } finally {

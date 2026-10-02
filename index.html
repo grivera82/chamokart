@@ -34,7 +34,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=36" />
+  <link rel="stylesheet" href="css/style.css?v=37" />
   <script src="js/crash.js?v=1"></script>
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
@@ -331,6 +331,11 @@
       <div class="card notify-card">
         <h3>🔔 Notifications</h3>
         <p id="notify-text" class="muted notify-text"></p>
+        <div id="notify-prefs" class="notify-prefs" hidden>
+          <label class="field check"><input type="checkbox" data-pref="beaten" /> <span>😱 Someone beats my record</span></label>
+          <label class="field check"><input type="checkbox" data-pref="daily" /> <span>📅 A new Daily Challenge is up</span></label>
+          <label class="field check"><input type="checkbox" data-pref="playing" /> <span>🏁 Someone starts playing</span></label>
+        </div>
         <button id="notify-btn" class="btn" data-action="notify-toggle"></button>
       </div>
       <div class="row end"><button class="btn primary" data-action="back">Back</button></div>
@@ -597,6 +602,12 @@
       <h2 class="screen-title" id="results-title">Results</h2>
       <p id="results-sub" class="muted"></p>
       <div id="results-table" class="results-table"></div>
+      <!-- "Want to know if someone beats this?": asking for notifications right after a record -->
+      <div id="notify-ask" class="notify-ask" hidden>
+        <p id="notify-ask-text"></p>
+        <button class="btn small ghost" data-action="notify-ask-no">Not now</button>
+        <button class="btn small primary" data-action="notify-ask-yes">🔔 Yes, tell me</button>
+      </div>
       <div class="row end" id="results-actions"></div>
     </div>
   </section>
@@ -628,6 +639,6 @@
 
   <div id="toasts" class="toasts"></div>
 
-  <script type="module" src="js/main.js?v=55"></script>
+  <script type="module" src="js/main.js?v=56"></script>
 </body>
 </html>

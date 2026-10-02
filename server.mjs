@@ -13,6 +13,7 @@ import { createBugs } from "./bugs.mjs";
 import { createFeatures } from "./features.mjs";
 import { dailyChallenge, dailyId, isDailyId, DAILY_LAPS } from "./js/daily.js";
 import { CUSTOM, cleanLook } from "./js/look.js";
+import { TRACKS, CHARACTERS, KARTS } from "./js/data.js";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 8792);
@@ -558,6 +559,48 @@ function noteBeaten(pid, board, track, was, racer, time) {
   n.by = [{ name: racer.name, char: racer.char, look: racer.look, time }, ...n.by.filter((b) => b.name !== racer.name)].slice(0, 3);
   n.at = now();
   saveBeaten();
+  alertBeaten(pid, { kind: "board", board, track, was, name: racer.name, time });
+}
+
+// Tell them right away instead of waiting for their next visit: a nudge to their open game
+// (it fetches the notes and shows them on the menus), or a push notification if they're away.
+// A lap record and a full-race record falling together (or several passes in a row) arrive
+// as one notification.
+const fmtTime = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(3).padStart(6, "0")}`;
+const pendingAlerts = new Map(); // pid -> { items, timer }
+
+function alertBeaten(pid, item) {
+  let p = pendingAlerts.get(pid);
+  if (!p) pendingAlerts.set(pid, (p = { items: [], timer: setTimeout(() => flushAlerts(pid), 2000) }));
+  p.items.push(item);
+}
+
+function flushAlerts(pid) {
+  const p = pendingAlerts.get(pid);
+  pendingAlerts.delete(pid);
+  if (!p) return;
+  const uid = uidOf(pid);
+  const live = presenceClients().filter((c) => c.uid === uid);
+  if (live.length) {
+    for (const c of live) send(c, { t: "beaten-now" });
+    return;
+  }
+  // The biggest news leads: losing #1 beats losing #5, a record beats a ghost challenge
+  const items = p.items.sort((a, b) => (a.kind === "ghost") - (b.kind === "ghost") || (a.was || 99) - (b.was || 99) || (a.board === "runs" ? -1 : 1));
+  const top = items[0];
+  const where = TRACKS[top.track]?.name || "a track";
+  let title, body;
+  if (top.kind === "ghost") {
+    const d = Math.abs(top.mine - top.time).toFixed(2);
+    title = `👻 ${top.name} raced your ghost on ${where}`;
+    body = top.time < top.mine ? `${fmtTime(top.time)}: ${d}s faster than you! Tap to race back.` : `${fmtTime(top.time)}, but you're still ${d}s faster 😎`;
+  } else {
+    const what = top.board === "laps" ? "best lap" : "Time Trial record";
+    title = top.was === 1 ? `😱 ${top.name} took your #1 on ${where}!` : `😱 ${top.name} beat your ${what} on ${where}`;
+    const also = items.length > 1 ? (items.some((x) => x.kind === "board" && x.board !== top.board && x.track === top.track) ? " They beat your " + (top.board === "laps" ? "full race" : "best lap") + " too." : " And there's more news inside.") : "";
+    body = `Their ${top.board === "laps" ? "lap" : "race"}: ${fmtTime(top.time)}.${also} Tap to win it back!`;
+  }
+  push.notify(pid, "beaten", { title, body, url: "/chamokart/", tag: `beaten-${top.track}` });
 }
 
 // The player's notes (once: reading them clears them), minus any rank they've already won back.
@@ -704,6 +747,7 @@ function noteChallenge(ch, by) {
   n.by = [by, ...n.by.filter((b) => b.name !== by.name)].slice(0, 3);
   n.at = now();
   saveBeaten();
+  alertBeaten(ownerOf(ch), { kind: "ghost", track: ch.track, mine: ch.time, name: by.name, time: by.time });
 }
 
 // ---------------------------------------------------------------- daily challenge
@@ -1111,7 +1155,7 @@ const push = createPush({ dir: STATE_DIR, subject: "https://jgrivera.com/chamoka
 const bugs = createBugs({ file: BUGS_FILE, notify: (m) => push.admins(m) });
 const features = createFeatures({ file: FEATURES_FILE, notify: (m) => push.admins(m) });
 const serverStarted = now();
-const PLAYING_GRACE_MS = 5 * 60000; // after a restart everyone reconnects: don't announce them all
+const PLAYING_GRACE_MS = Number(process.env.PLAYING_GRACE_MS ?? 5 * 60000); // after a restart everyone reconnects: don't announce them all
 const AWAY_BEFORE_ANNOUNCE_MS = 20 * 60000;
 const CHALLENGE_TTL_MS = 5 * 60000;
 const lastSeen = new Map(); // uid -> time we last saw them online
@@ -1377,7 +1421,7 @@ function handle(client, msg) {
       return send(client, { t: "push-key", key: push.publicKey });
     case "push-sub":
       if (!validPid(msg.pid)) return send(client, { t: "push-ok", ok: false });
-      return send(client, { t: "push-ok", ok: push.subscribe(msg.pid, uidOf(msg.pid), msg.sub) });
+      return send(client, { t: "push-ok", ok: push.subscribe(msg.pid, uidOf(msg.pid), msg.sub, msg.prefs) });
     case "push-unsub":
       if (validPid(msg.pid)) push.unsubscribe(msg.pid, typeof msg.endpoint === "string" ? msg.endpoint : null);
       return send(client, { t: "push-ok", ok: true });
@@ -1673,6 +1717,27 @@ setInterval(() => {
   const data = JSON.stringify({ t: "rooms", list });
   for (const c of clients.values()) if (!c.room && !c.presence) send(c, data); // presence connections don't browse rooms
 }, 3000);
+
+// The new Daily Challenge, announced once a day (just after midnight UTC) to players who want it
+function announceDaily() {
+  if (now() - serverStarted < PLAYING_GRACE_MS) return; // let everyone reconnect after a restart first
+  const id = dailyId();
+  const ch = dailyChallenge(id);
+  const winner = daily.days[dailyId(now() - 86400000)]?.[0];
+  const racer = CHARACTERS[ch.char]?.custom ? "your Custom racer" : CHARACTERS[ch.char]?.name;
+  const n = push.daily(
+    id,
+    {
+      title: "📅 Today's challenge is up!",
+      body: `${TRACKS[ch.track]?.name} · ${racer} in the ${KARTS[ch.kart]?.name} · ${ch.cc}cc.${winner ? ` Yesterday's winner: ${winner.name} 🥇` : ""} Can you top the board?`,
+      url: "/chamokart/#daily",
+      tag: "daily",
+    },
+    isOnline
+  );
+  if (n) console.log(`daily: announced ${id} to ${n} devices`);
+}
+setInterval(announceDaily, 60000);
 
 httpServer.listen(PORT, HOST, () => console.log(`Chamo Kart server on ${HOST}:${PORT}`));
 
