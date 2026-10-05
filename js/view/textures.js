@@ -63,7 +63,7 @@ export function roadTexture(theme) {
       g.fillRect(250, 0, 6, 256);
       return tex(c);
     }
-    const base = { meadow: "#5b5d66", desert: "#7a6a5c", snow: "#6c7280", beach: "#6f6a66", mars: "#5e4640", miami: "#3b3e46", zoo: "#615f5b" }[theme] || "#5b5d66";
+    const base = { meadow: "#5b5d66", desert: "#7a6a5c", snow: "#6c7280", beach: "#6f6a66", mars: "#5e4640", miami: "#3b3e46", zoo: "#615f5b", savanna: "#6e5d4c" }[theme] || "#5b5d66";
     g.fillStyle = base;
     g.fillRect(0, 0, 256, 256);
     noise(g, 256, 256, 5000, 7, 0.18, 2);
@@ -100,6 +100,7 @@ export function curbTexture(theme) {
       mars: ["#39d353", "#f2ece4"],
       miami: ["#ff4fa3", "#f4f4f4"],
       zoo: ["#f2a81d", "#2f8a3a"],
+      savanna: ["#c8502a", "#f4e3b0"],
     }[theme] || ["#e8322f", "#f7f7f7"];
     g.fillStyle = a;
     g.fillRect(0, 0, 64, 64);
@@ -121,6 +122,7 @@ export function groundTexture(theme) {
       beach: ["#ffffff", [[245, 222, 170], [235, 210, 155], [250, 232, 190]]],
       neon: ["#ffffff", [[30, 20, 60], [40, 30, 80], [20, 10, 40]]],
       mars: ["#ffffff", [[200, 90, 50], [180, 75, 40], [215, 110, 65]]],
+      savanna: ["#ffffff", [[215, 180, 95], [200, 160, 80], [228, 196, 118]]],
     }[theme] || ["#fff", [[90, 160, 70]]];
     g.fillStyle = "#fff";
     g.fillRect(0, 0, 256, 256);
@@ -274,6 +276,17 @@ export function wallTexture(theme) {
         g.fillRect(x + 2, 4, 28, 56);
       }
       noise(g, 256, 64, 800, 9, 0.2, 2);
+    } else if (theme === "savanna") {
+      // Low ranch fence: weathered planks between posts
+      g.fillStyle = "#5e4128";
+      g.fillRect(0, 0, 256, 64);
+      for (let y = 6; y < 64; y += 19) {
+        g.fillStyle = "#b08a5a";
+        g.fillRect(0, y, 256, 13);
+      }
+      g.fillStyle = "#6b4a2c";
+      for (let x = 0; x < 256; x += 64) g.fillRect(x + 28, 0, 9, 64);
+      noise(g, 256, 64, 900, 31, 0.18, 2);
     } else if (theme === "zoo") {
       // Wooden zoo fence: planks with a green rail on top
       g.fillStyle = "#6b4526";
@@ -639,6 +652,42 @@ export function dayTowerTexture(seed) {
   });
 }
 
+
+// Safari Run's yellow diamond "animal crossing" sign, with the animal's name.
+export function crossingSignTexture(kind) {
+  return cached("cross" + kind, () => {
+    const c = canvas(256, 256);
+    const g = c.getContext("2d");
+    const diamond = (r) => {
+      g.beginPath();
+      g.moveTo(128, 128 - r);
+      g.lineTo(128 + r, 128);
+      g.lineTo(128, 128 + r);
+      g.lineTo(128 - r, 128);
+      g.closePath();
+    };
+    g.lineJoin = "round";
+    diamond(122);
+    g.fillStyle = "#1a1a1a";
+    g.fill();
+    diamond(110);
+    g.fillStyle = "#ffd21f";
+    g.fill();
+    g.fillStyle = "#1a1a1a";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.font = "900 26px Arial, sans-serif";
+    g.fillText("WATCH FOR", 128, 92);
+    const name = kind.toUpperCase() + "S";
+    let size = 40;
+    do g.font = `900 ${size--}px 'Arial Black', Arial, sans-serif`;
+    while (g.measureText(name).width > 150);
+    g.fillText(name, 128, 134);
+    g.font = "900 46px Arial, sans-serif";
+    g.fillText("!", 128, 176);
+    return tex(c, false);
+  });
+}
 
 // Dorito's orange tabby fur. "head" wraps a sphere (u 0.25 is the face, the top row is the
 // crown): the classic "M" of stripes on the forehead, cheek stripes and bands round the back.

@@ -2,12 +2,12 @@
 // of its race over the presence connection: the grid once, then every kart ten times a second,
 // the items on the road and what just happened. The watcher's game (SpectateSession) builds the
 // same track and plays the stream back a moment behind, like the online remote karts.
-import { RaceSim } from "./sim/race.js?v=21";
-import { RaceView } from "./view/raceview.js?v=27";
-import { TRACKS, CHARACTERS } from "./data.js?v=19";
+import { RaceSim } from "./sim/race.js?v=22";
+import { RaceView } from "./view/raceview.js?v=28";
+import { TRACKS, CHARACTERS } from "./data.js?v=20";
 import { audio } from "./audio.js?v=11";
 import { packKart } from "./net.js?v=7";
-import { ordinal } from "./hud.js?v=24";
+import { ordinal } from "./hud.js?v=25";
 import { poseKarts, VISUAL } from "./replay.js?v=5";
 
 const CAST_HZ = 10;
@@ -47,7 +47,7 @@ export class Broadcaster {
       this.sent = "off";
       return;
     }
-    const live = session && session.cfg.mode !== "attract" && !session.ended && !session.replay ? session : null;
+    const live = session && session.cfg.mode !== "attract" && !session.cfg.beta && !session.ended && !session.replay ? session : null; // beta tracks aren't on the server
     if (!live) {
       // The race is over, they left it, or there isn't one: tell the watchers once
       const msg = !this.sent ? { t: "cast", k: "idle" } : { t: "cast", k: "end", quit: session !== this.sent ? 1 : 0 };

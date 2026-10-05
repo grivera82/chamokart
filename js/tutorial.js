@@ -2,7 +2,7 @@
 // (drift, grab coins, hold a banana behind you…), watches the race for it, cheers and moves on.
 // Things you have to drive to (boxes, boosters, the ramp) get a distance and a minimap marker.
 import { audio } from "./audio.js?v=11";
-import { input } from "./input.js?v=6";
+import { input } from "./input.js?v=7";
 
 const $ = (s) => document.querySelector(s);
 const DONE_PAUSE = 1.4; // seconds the "✓ Nice!" stays up before the next step

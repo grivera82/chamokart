@@ -1,5 +1,5 @@
 // Arcade kart physics. Pure JS (no rendering).
-import { kartStats } from "../data.js?v=19";
+import { kartStats } from "../data.js?v=20";
 
 export const KART_RADIUS = 1.25;
 export const GRAVITY = 30;

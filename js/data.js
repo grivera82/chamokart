@@ -282,4 +282,46 @@ export const TRACKS = [
   },
 ];
 
+// ---------------------------------------------------------------- beta
+// Experiments, played from the 🧪 Beta screen. Beta tracks aren't in TRACKS (so no boards,
+// cups, daily challenges or online races): they're numbered from BETA_BASE.
+
+export const BETA_BASE = 100;
+export const BETA_TRACKS = [
+  {
+    name: "Safari Run",
+    sub: "Mind the wildlife",
+    theme: "savanna",
+    boundary: "wall",
+    width: 22,
+    shoulder: 7,
+    laps: 3,
+    scale: 1.05,
+    points: [
+      [0, -170, 0], [0, -60, 0], [10, 40, 1], [50, 110, 2], [120, 140, 3], [190, 120, 3], [230, 60, 2],
+      [220, -10, 1], [170, -40, 0], [150, -90, 0], [180, -150, 1], [170, -220, 2], [110, -250, 2],
+      [50, -235, 1], [15, -205, 0],
+    ],
+    boxes: [],
+    coins: [],
+    boosts: [{ at: 0.3, lat: 0.3 }, { at: 0.62, lat: -0.3 }],
+    ramps: [],
+    gaps: [],
+    // Herds that walk across the road and back (js/sim/crossings.js)
+    crossings: [
+      { at: 0.1, kind: "zebra", n: 4, period: 16, phase: 3 },
+      { at: 0.22, kind: "elephant", n: 2, period: 22, phase: 9 },
+      { at: 0.37, kind: "lion", n: 1, period: 7, phase: 2 },
+      { at: 0.5, kind: "giraffe", n: 3, period: 18, phase: 12 },
+      { at: 0.69, kind: "zebra", n: 5, period: 19, phase: 7 },
+      { at: 0.82, kind: "hippo", n: 2, period: 17, phase: 5 },
+      { at: 0.93, kind: "lion", n: 2, period: 9, phase: 6 },
+    ],
+    music: { bpm: 126, root: 57, mode: "dorian", seed: 211 },
+  },
+];
+
+// Any track by number: the regular ones, or a beta one
+export const trackDef = (i) => (i >= BETA_BASE ? BETA_TRACKS[i - BETA_BASE] : TRACKS[i]);
+
 export const CUPS = [{ name: "Chamo Cup", tracks: [0, 1, 2, 3, 4] }];

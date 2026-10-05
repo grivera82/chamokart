@@ -1,21 +1,21 @@
 // Chamo Kart: app shell, menus, game flow.
 import * as THREE from "three";
-import { CHARACTERS, KARTS, TRACKS, CUPS, POINTS, ITEMS, botName } from "./data.js?v=19";
+import { CHARACTERS, KARTS, TRACKS, CUPS, POINTS, ITEMS, botName, BETA_BASE, trackDef } from "./data.js?v=20";
 import { CUSTOM, DEFAULT_LOOK, LOOK_OPTIONS, STAT_KEYS, STAT_POINTS, STAT_MIN, STAT_MAX, cleanLook, lookKey, randomLook } from "./look.js?v=3";
-import { getTrack } from "./sim/race.js?v=21";
-import { RaceSession } from "./game.js?v=35";
-import { HUD, ITEM_SVG, fmtTime, ordinal } from "./hud.js?v=24";
+import { getTrack } from "./sim/race.js?v=22";
+import { RaceSession } from "./game.js?v=37";
+import { HUD, ITEM_SVG, fmtTime, ordinal } from "./hud.js?v=25";
 import { audio } from "./audio.js?v=11";
-import { input } from "./input.js?v=6";
+import { input } from "./input.js?v=7";
 import { Net } from "./net.js?v=7";
 import { Voice } from "./voice.js?v=5";
-import { Showroom, renderPortraits, renderPortrait } from "./view/showroom.js?v=24";
-import { setAnisotropy } from "./view/textures.js?v=8";
+import { Showroom, renderPortraits, renderPortrait } from "./view/showroom.js?v=25";
+import { setAnisotropy } from "./view/textures.js?v=9";
 import { serverRequest } from "./records.js?v=12";
 import { dailyChallenge, dailyId, msToNextDaily } from "./daily.js?v=4";
 import { Presence } from "./presence.js?v=3";
 import { drawShareCard } from "./sharecard.js?v=2";
-import { Broadcaster, SpectateSession } from "./spectate.js?v=16";
+import { Broadcaster, SpectateSession } from "./spectate.js?v=17";
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -49,6 +49,16 @@ const REACTIONS = ["👏", "🔥", "😂", "😱", "🍌", "❤️"];
 const PALETTE = [0xe23b3b, 0xff7a1a, 0xffd23f, 0x7ad04a, 0x1f9d55, 0x38e0c8, 0x6ac8ff, 0x2f5bd9, 0x8e44ad, 0xff4f9a, 0xffffff, 0xb8bcc8, 0x4a4a55, 0x15151c, 0x8a5a2b];
 const SKINS = [0xf3d3b6, 0xe2a36f, 0xc98b5c, 0x8d5a3b, 0x5a3a24, 0xf5f1e6, 0x7ad04a, 0x6ac8ff, 0xff9fb0, 0xff8a1a, 0xb8bcc8, 0x8e44ad];
 const HAIR = [0x15151c, 0x3a2412, 0x6a4020, 0xc98b3c, 0xf2d27a, 0xe8e4dc, 0xe23b3b, 0xff4f9a, 0x2f5bd9, 0x7ad04a, 0x8e44ad];
+// Beta experiments (🧪 Beta screen)
+const BETA = [
+  {
+    id: "safari",
+    icon: "🦓",
+    name: "Safari Run",
+    track: BETA_BASE + 0,
+    text: "A Time Trial across the savanna, where zebras, elephants, lions, giraffes and hippos wander across the road. Hit one and it's back to the start! Can you finish 3 clean laps?",
+  },
+];
 const MODE_NAMES = { gp: "Grand Prix", vs: "Versus", tt: "Time Trial", daily: "Daily Challenge", online: "Online race", tutorial: "Tutorial" };
 const TITLE_SONG = { bpm: 132, root: 62, mode: "major", seed: 7 };
 const LOBBY_SONG = { bpm: 112, root: 60, mode: "mixolydian", seed: 91 };
@@ -205,7 +215,7 @@ class App {
       ? {
           where: this.feedbackFrom === "pause" && cfg ? "race" : this.feedbackFrom || "",
           mode: cfg ? (cfg.daily ? "daily" : cfg.mode) : "",
-          track: cfg ? TRACKS[cfg.track]?.name : "",
+          track: cfg ? trackDef(cfg.track)?.name : "",
           device: isTouch ? (Math.min(screen.width, screen.height) >= 700 ? "tablet" : "phone") : "desktop",
           browser: browserName(),
           version: new URL(import.meta.url).searchParams.get("v") || "",
@@ -975,6 +985,7 @@ class App {
     }
     if (this.session && !this.screen) {
       if (input.isKey("pause", code)) this.pause();
+      else if ((input.isKey("restart", code) || code === "restart") && this.quickRestart()) return;
       else if ((this.session.online || this.caster?.watchers.length) && (code === "Enter" || code === "NumpadEnter" || code === "KeyT")) setTimeout(() => this.openRaceChat(), 0);
       else if (this.session.online && code === "KeyV") this.action("hud-mic");
       else if (code === "KeyD") this.session.toggleSpecial();
@@ -1126,6 +1137,22 @@ class App {
         break;
       case "tutorial":
         this.startTutorial();
+        break;
+      case "beta":
+        audio.play("select");
+        this.openBeta();
+        break;
+      case "quick-restart":
+        this.quickRestart();
+        break;
+      case "beta-play":
+        audio.play("select");
+        this.startBeta(el.dataset.id);
+        break;
+      case "beta-menu":
+        this.quitRace();
+        this.history = ["menu"];
+        this.openBeta();
         break;
       case "tut-skip":
         this.session?.tutorial?.skip();
@@ -1376,6 +1403,7 @@ class App {
         this.resume();
         break;
       case "restart":
+        if (this.lastRaceCfg?.mode === "tt") this.lastRaceCfg.quickStart = true; // Time Trial goes straight to the countdown
         this.restartRace();
         break;
       case "quit":
@@ -1529,9 +1557,15 @@ class App {
     this.hideScreens();
     $("#hud").classList.add("active");
     $("#restart-btn").style.display = cfg.mode === "online" ? "none" : "";
+    document.body.classList.toggle("tt-race", cfg.mode === "tt");
+    if (cfg.mode === "tt" && !cfg.quickStart && store.get("restartTip", 0) < 3) {
+      // The first few Time Trials: point out the instant restart
+      store.set("restartTip", store.get("restartTip", 0) + 1);
+      setTimeout(() => this.session?.cfg === cfg && this.toast(input.touchMode ? "↻ Tip: tap ↻ to restart anytime" : "↻ Tip: press R to restart anytime", false, 3500), 1500);
+    }
     $("#hud-social").classList.toggle("on", cfg.mode === "online");
     $("#hud-feed").innerHTML = "";
-    if (cfg.mode !== "tt" || cfg.daily) {
+    if (cfg.mode !== "tt" || cfg.daily || cfg.beta) {
       this.ttTrack = null;
       $("#hud-records").innerHTML = "";
     }
@@ -1547,6 +1581,7 @@ class App {
   restartRace() {
     if (!this.lastRaceCfg || this.lastRaceCfg.mode === "online") return;
     const cfg = { ...this.lastRaceCfg, seed: undefined };
+    if (cfg.beta) return this.startBeta(cfg.beta, this.screen === "results" ? 1 : (cfg.attempt || 1) + 1); // a restart mid-run counts as another attempt
     if (cfg.daily) {
       // Past midnight the old challenge is closed: show the new one instead.
       if (cfg.daily !== dailyId()) {
@@ -1559,8 +1594,18 @@ class App {
     this.startRace(cfg);
   }
 
+  // Time Trial: start over instantly (R, ↻ or Back on a gamepad), straight to the countdown
+  quickRestart() {
+    const s = this.session;
+    if (!s || s.cfg.mode !== "tt" || s.replay || this.screen) return false;
+    audio.play("back");
+    this.lastRaceCfg.quickStart = true;
+    this.restartRace();
+    return true;
+  }
+
   endSession() {
-    document.body.classList.remove("replaying");
+    document.body.classList.remove("replaying", "tt-race");
     if (this.session) {
       this.session.dispose();
       this.session = null;
@@ -1607,6 +1652,7 @@ class App {
 
   onRaceEnd(session) {
     const cfg = session.cfg;
+    if (cfg.beta) return this.betaResults(session); // beta runs stay off the boards and stats
     const rows = session.results();
     const table = $("#results-table");
     table.innerHTML = "";
@@ -2100,7 +2146,7 @@ class App {
     let status = { where: "menu" };
     if (this.watch) status = { where: "watch" };
     else if (this.room) status = { where: this.session?.online ? "online" : "lobby" };
-    else if (cfg) status = { where: "race", mode: cfg.daily ? "daily" : cfg.mode, track: cfg.track };
+    else if (cfg) status = { where: "race", mode: cfg.beta ? "beta" : cfg.daily ? "daily" : cfg.mode, track: cfg.beta ? 0 : cfg.track };
     return { pid: this.pid, name: s.name || CHARACTERS[s.char].name, char: s.char, look: this.lookFor(s.char), status };
   }
 
@@ -2175,6 +2221,7 @@ class App {
     if (st.where === "online") return "Racing online";
     if (st.where === "watch") return st.of ? `Watching ${st.of} race` : "Watching a race";
     if (st.where === "race") {
+      if (st.mode === "beta") return "Trying out the 🧪 Beta";
       const mode = { gp: "Grand Prix", vs: "Racing", tt: "Time Trial", daily: "Daily Challenge", tutorial: "Learning to race" }[st.mode] || "Racing";
       return `${mode} · ${TRACKS[st.track]?.name ?? ""}`;
     }
@@ -2582,6 +2629,92 @@ class App {
     this.pendingJoin = code;
     this.history = ["menu"];
     this.openOnline();
+  }
+
+  // ------------------------------------------------------------------ beta
+  openBeta() {
+    const list = $("#beta-list");
+    list.innerHTML = "";
+    const best = store.get("betaBest", {});
+    for (const b of BETA) {
+      const card = document.createElement("div");
+      card.className = "beta-card";
+      const h = document.createElement("h3");
+      h.innerHTML = `${b.icon} <span></span> <small>BETA</small>`;
+      h.querySelector("span").textContent = b.name;
+      const p = document.createElement("p");
+      p.textContent = b.text;
+      const bt = document.createElement("span");
+      bt.className = "beta-best";
+      const mine = best[b.id];
+      bt.textContent = mine ? `Your best: ${fmtTime(mine.time)} (clean run on attempt ${mine.attempt})` : "No clean run yet. Can you make it?";
+      const go = document.createElement("button");
+      go.className = "btn primary";
+      go.dataset.action = "beta-play";
+      go.dataset.id = b.id;
+      go.textContent = "▶ Play";
+      card.append(h, p, bt, go);
+      list.append(card);
+    }
+    this.show("beta");
+  }
+
+  startBeta(id, attempt = 1) {
+    const b = BETA.find((x) => x.id === id);
+    if (!b) return;
+    const s = this.settings;
+    if (attempt > 1) this.toast(`${b.icon} Attempt ${attempt}. Watch out for the animals!`, false, 2500);
+    this.startRace({
+      mode: "tt",
+      beta: id,
+      attempt,
+      quickStart: attempt > 1,
+      track: b.track,
+      laps: 3,
+      cc: 150,
+      items: false,
+      grid: [{ id: "you", name: s.name || CHARACTERS[s.char].name, char: s.char, kart: s.kart, look: this.lookFor(s.char), human: true, local: true }],
+      ghost: store.get("ghost_beta_" + id, null),
+    });
+  }
+
+  // Ran into an animal: straight back to the start
+  betaCrash(session) {
+    if (this.session !== session || this.screen) return;
+    this.startBeta(session.cfg.beta, (session.cfg.attempt || 1) + 1);
+  }
+
+  betaResults(session) {
+    const cfg = session.cfg;
+    const me = session.me;
+    const b = BETA.find((x) => x.id === cfg.beta);
+    const laps = [...this.hud.lapTimes];
+    const bests = store.get("betaBest", {});
+    const prev = bests[cfg.beta];
+    const isBest = !prev || me.finishTime < prev.time;
+    if (isBest) {
+      bests[cfg.beta] = { time: me.finishTime, attempt: cfg.attempt || 1 };
+      store.set("betaBest", bests);
+      store.set("ghost_beta_" + cfg.beta, { time: me.finishTime, char: me.char, kart: me.kartType, look: me.look, frames: session.ghostFrames });
+    }
+    $("#results-title").textContent = isBest ? `${b.icon} New best!` : `${b.icon} You made it!`;
+    const tries = cfg.attempt > 1 ? `clean run on attempt ${cfg.attempt}` : "clean run on the first try!";
+    $("#results-sub").textContent = `${b.name} · ${fmtTime(me.finishTime)} · ${tries}${prev && !isBest ? ` · best ${fmtTime(prev.time)}` : ""}`;
+    const table = $("#results-table");
+    table.innerHTML = "";
+    laps.forEach((t, i) => this.resultRow(table, { pos: "L" + (i + 1), char: me.char, look: me.look, name: `Lap ${i + 1}`, time: fmtTime(t), me: true }, i));
+    const actions = $("#results-actions");
+    actions.innerHTML = "";
+    for (const [label, action, primary] of [["🧪 Beta", "beta-menu"], ["💬 Feedback", "feedback"], ["Try again", "retry", true]]) {
+      const btn = document.createElement("button");
+      btn.className = "btn" + (primary ? " primary" : "");
+      btn.textContent = label;
+      btn.dataset.action = action;
+      actions.append(btn);
+    }
+    this.shareInfo = null;
+    audio.playSong({ bpm: 100, root: 65, mode: "major", seed: 5 });
+    this.show("results", false);
   }
 
   // ------------------------------------------------------------------ the tutorial
@@ -3475,7 +3608,7 @@ window.ckCrashContext = () => {
   return {
     screen: app.screen || "",
     mode: cfg ? (cfg.daily ? "daily" : cfg.mode) : "",
-    track: cfg ? TRACKS[cfg.track]?.name || "" : "",
+    track: cfg ? trackDef(cfg.track)?.name || "" : "",
     online: !!app.room,
     watching: !!app.spectate,
     char: CHARACTERS[s.char]?.name || "",

@@ -1,9 +1,9 @@
 // Procedural low-poly models: karts, drivers, items.
 import * as THREE from "three";
-import { CHARACTERS } from "../data.js?v=19";
+import { CHARACTERS } from "../data.js?v=20";
 import { cleanLook, DEFAULT_LOOK } from "../look.js?v=3";
 import { buildCustomDriver, dressCustomKart, kartColors, customAnim } from "./custom.js?v=3";
-import { tabbyTexture, itemBoxTexture, shirtLogoTexture, spiderSuitTexture, spiderMaskTexture, spiderWebTexture } from "./textures.js?v=8";
+import { tabbyTexture, itemBoxTexture, shirtLogoTexture, spiderSuitTexture, spiderMaskTexture, spiderWebTexture } from "./textures.js?v=9";
 
 const matCache = new Map();
 export function mat(color, opts = {}) {

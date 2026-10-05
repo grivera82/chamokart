@@ -8,6 +8,7 @@ const KEYS = {
   item: ["KeyE", "KeyX", "KeyJ", "KeyL"],
   back: ["KeyC", "KeyQ"],
   pause: ["Escape", "KeyP"],
+  restart: ["KeyR"], // Time Trial: start over right away
 };
 
 export class Input {
@@ -82,6 +83,7 @@ export class Input {
       item: b(4) || b(6) || b(3),
       back: b(2),
       pause: b(9),
+      restart: b(8), // Back / Select / View
       up: b(12) || stickY < -0.6,
       down: b(13) || stickY > 0.6,
       left: b(14) || steer < -0.6,
@@ -99,6 +101,7 @@ export class Input {
     if (edge("confirm")) this.fire("pad", "confirm");
     if (edge("cancel")) this.fire("pad", "cancel");
     if (edge("pause")) this.fire("key", "Escape");
+    if (edge("restart")) this.fire("pad", "restart");
   }
 
   // Current driving controls

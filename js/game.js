@@ -1,16 +1,16 @@
 // A single race: glues simulation, rendering, HUD, audio, input and network.
 import * as THREE from "three";
-import { RaceSim, COUNTDOWN } from "./sim/race.js?v=21";
-import { RaceView } from "./view/raceview.js?v=27";
-import { buildKart } from "./view/models.js?v=24";
-import { TRACKS, CHARACTERS } from "./data.js?v=19";
+import { RaceSim, COUNTDOWN } from "./sim/race.js?v=22";
+import { RaceView } from "./view/raceview.js?v=28";
+import { buildKart } from "./view/models.js?v=25";
+import { TRACKS, CHARACTERS, trackDef } from "./data.js?v=20";
 import { audio } from "./audio.js?v=11";
-import { input } from "./input.js?v=6";
+import { input } from "./input.js?v=7";
 import { packKart, applyFlags } from "./net.js?v=7";
-import { onBoostPad } from "./sim/kart.js?v=20";
-import { ordinal } from "./hud.js?v=24";
-import { labelTexture } from "./view/textures.js?v=8";
-import { Tutorial } from "./tutorial.js?v=4";
+import { onBoostPad } from "./sim/kart.js?v=21";
+import { ordinal } from "./hud.js?v=25";
+import { labelTexture } from "./view/textures.js?v=9";
+import { Tutorial } from "./tutorial.js?v=5";
 import { ReplayRecorder, ReplayPlayer } from "./replay.js?v=5";
 
 const SEND_HZ = 20;
@@ -27,6 +27,7 @@ export class RaceSession {
     let introTime = 3.4;
     if (this.online) introTime = Math.max(0.3, (cfg.startAt - this.net.serverNow()) / 1000 - COUNTDOWN);
     if (cfg.mode === "attract") introTime = 0;
+    if (cfg.quickStart) introTime = 0.4; // straight back into the countdown (beta retries)
     this.sim = new RaceSim({
       track: cfg.track,
       laps: cfg.laps,
@@ -58,9 +59,9 @@ export class RaceSession {
     this.paused = false;
     this.lastLap = 1;
     this.finalLapPlayed = false;
-    this.def = TRACKS[cfg.track];
+    this.def = trackDef(cfg.track);
     if (cfg.mode !== "attract") {
-      app.hud.setup(this.sim, cfg.localId, { mode: cfg.mode, records: cfg.mode === "tt" && !cfg.daily });
+      app.hud.setup(this.sim, cfg.localId, { mode: cfg.mode, records: cfg.mode === "tt" && !cfg.daily && !cfg.beta });
       audio.playSong(this.def.music);
       audio.engine("me", true);
     }
@@ -115,6 +116,22 @@ export class RaceSession {
       model.visible = this.sim.time >= 0 && t < f.length;
       this.app.hud.ghosts.push({ x: model.position.x, z: model.position.z, record });
     }
+  }
+
+  // Safari Run: a sign on the HUD when animals cross just ahead (blinking while they're on the road)
+  crossingWarning() {
+    const el = this.app.hud.el.warn;
+    const me = this.me;
+    const next = this.sim.crossings.next(me.q.idx ?? 0);
+    const ahead = next && next.d * this.sim.track.spacing;
+    let text = "";
+    let live = false;
+    if (next && ahead < 110 && !me.finished && !me.crashed) {
+      text = `⚠️ ${next.c.kind.toUpperCase()} CROSSING`;
+      live = this.sim.crossings.animals.some((a) => this.sim.crossings.list[a.c] === next.c && Math.abs(a.lat) < this.sim.track.hw[next.c.i] + 3);
+    }
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle("live", live);
   }
 
   // Play the race's highlights; calls ui.done() when they end (or right away if there are none).
@@ -266,6 +283,15 @@ export class RaceSession {
     const hud = this.app.hud;
     for (const { kart: k, e } of events) {
       const mine = k === me;
+      if (mine && e.startsWith("crash:") && !this.crashAt) {
+        const kind = e.slice(6);
+        audio.play("shellHit");
+        audio.play("spin", 0.8);
+        hud.flash("#ff4040", 0.6);
+        hud.message(`💥 You hit ${kind === "elephant" ? "an" : "a"} ${kind}!`, "final", "Back to the start…", 2.4);
+        this.crashAt = performance.now();
+        continue;
+      }
       if (e === "pad" && CHARACTERS[k.char]?.style === "tabby") {
         // Dorito's meow: loud if it's you, fainter from a Dorito nearby
         const d = mine || !me ? 0 : Math.hypot(k.x - me.x, k.z - me.z);
@@ -370,6 +396,7 @@ export class RaceSession {
     if (me && !me.finished && this.cfg.mode !== "attract") {
       Object.assign(me.ctl, ctl);
       if (this.paused) me.ctl.throttle = me.ctl.drift = me.ctl.item = 0;
+      if (me.crashed) Object.assign(me.ctl, { throttle: 0, brake: 0, steer: 0, drift: false, item: false }); // ran into an animal: game over
     }
     this.view.lookBack = ctl.lookBack && me && !me.finished;
     if (!this.paused || this.online) sim.update(dt);
@@ -396,6 +423,12 @@ export class RaceSession {
         rev: me.revving && sim.time < 0,
         vol: me.respawnT > 0 ? 0.3 : 1,
       });
+    }
+    if (sim.crossings && me) this.crossingWarning();
+    // Beta: after hitting an animal, start over
+    if (this.crashAt && !this.ended && performance.now() - this.crashAt > 2300) {
+      this.ended = true;
+      this.app.betaCrash(this);
     }
     // End of race (single player modes)
     if (!this.online && !this.ended && this.finishShownAt && performance.now() - this.finishShownAt > 4200) {

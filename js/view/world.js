@@ -1,8 +1,8 @@
 // Builds the visual world for a track: sky, lights, terrain, road, scenery.
 import * as THREE from "three";
 import { CURB } from "../sim/track.js?v=4";
-import * as T from "./textures.js?v=8";
-import { mat } from "./models.js?v=24";
+import * as T from "./textures.js?v=9";
+import { mat } from "./models.js?v=25";
 
 export const THEMES = {
   meadow: {
@@ -40,6 +40,12 @@ export const THEMES = {
     skyTop: 0x02060f, skyBottom: 0x1b3c5c, fog: 0x0f2638, fogNear: 160, fogFar: 950,
     sun: 0xa8c4ff, sunI: 1.4, hemiSky: 0x7090c8, hemiGround: 0x1a1a2a, hemiI: 1.3,
     near: 0x34463a, far: 0x2a3830, high: 0x3a3a40, mountain: 0x0f1a28, mountain2: 0x142238,
+  },
+  // Safari Run (beta): late-afternoon savanna, golden grass and haze
+  savanna: {
+    skyTop: 0x4a90d8, skyBottom: 0xffe2b0, fog: 0xf2dcb0, fogNear: 230, fogFar: 1150,
+    sun: 0xffe2b8, sunI: 2.9, hemiSky: 0xffe8c8, hemiGround: 0x8a6a30, hemiI: 1.15,
+    near: 0xc9a24e, far: 0xb8903e, high: 0x9a8a48, mountain: 0x8a7a5a, mountain2: 0xa89870,
   },
   zoo: {
     skyTop: 0x3a8fe8, skyBottom: 0xd6f0ff, fog: 0xdcefff, fogNear: 240, fogFar: 1150,
@@ -169,6 +175,7 @@ export function buildWorld(scene, track, quality = "high") {
       case "mars": return 6 + n * 22 + edge * 110 * fbm(x / 120, z / 120) + craterHeight(x, z);
       case "miami": return -7 + 8.8 * miamiLand(x, z) + n * 1.5;
       case "zoo": return n * 8 - 2 + edge * 40 * fbm(x / 90, z / 90);
+      case "savanna": return n * 8 - 2 + edge * 45 * fbm(x / 100, z / 100);
       default: return -200;
     }
   }
@@ -183,9 +190,10 @@ export function buildWorld(scene, track, quality = "high") {
       if (gap[i] && d < wd + 10) return road - 32;
       // Zoo City's enclosures sit on level ground; Miami's causeways drop straight into the
       // bay; elsewhere the land eases away from the road.
-      const level = theme === "zoo" ? 48 : 2.5;
+      // Safari Run's herds wait on level ground beside the road too.
+      const level = theme === "zoo" ? 48 : theme === "savanna" ? 30 : 2.5;
       if (d < wd + level) return road;
-      return road + (base - road) * smoothstep(wd + level, wd + (theme === "miami" ? 14 : theme === "zoo" ? 110 : 55), d);
+      return road + (base - road) * smoothstep(wd + level, wd + (theme === "miami" ? 14 : theme === "zoo" ? 110 : theme === "savanna" ? 90 : 55), d);
     }
     // Void boundary (beach): sand shoulders, then slope into the sea.
     if (d < wd + 0.3) return road;
@@ -708,6 +716,7 @@ export function buildWorld(scene, track, quality = "high") {
     mars: [["rock", 0.4], ["spire", 0.16], ["alien", 0.16], ["glow", 0.14], ["dish", 0.07], ["habitat", 0.07]],
     miami: [["palm", 0.8], ["bush", 0.2]],
     zoo: [["tree", 0.6], ["bush", 0.3], ["rock", 0.1]],
+    savanna: [["acacia", 0.3], ["tuft", 0.4], ["bush", 0.18], ["rock", 0.12]],
   }[theme];
   let placed = 0;
   for (let tries = 0; tries < count * 8 && placed < count; tries++) {
@@ -748,6 +757,7 @@ export function buildWorld(scene, track, quality = "high") {
   }
   if (theme === "miami") buildMiami();
   if (theme === "zoo") buildZoo();
+  if (theme === "savanna") buildSavanna();
   if (theme === "mars") {
     // Mothership parked in the big crater, with a welcoming committee
     if (mainCrater) {
@@ -837,7 +847,7 @@ export function buildWorld(scene, track, quality = "high") {
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + rand() * 0.2;
       const r = radius + 600 + rand() * 350;
-      const h = theme === "beach" ? 40 + rand() * 60 : theme === "neon" ? 0.001 : 140 + rand() * 260;
+      const h = theme === "beach" || theme === "savanna" ? 40 + rand() * 60 : theme === "neon" ? 0.001 : 140 + rand() * 260;
       const w = h * (0.8 + rand() * 0.8);
       const baseY = theme === "neon" ? -9999 : theme === "beach" ? -8 : -20;
       m4.compose(new THREE.Vector3(cx + Math.cos(a) * r, baseY, cz + Math.sin(a) * r), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 3), new THREE.Vector3(w, h, w));
@@ -914,6 +924,47 @@ export function buildWorld(scene, track, quality = "high") {
   }
 
   // ------------------------------------------------------------- Zoo set pieces
+  // ------------------------------------------------------------- Safari Run (beta)
+  // A yellow warning sign before each animal crossing, and herds grazing out on the plain.
+  function buildSavanna() {
+    const post = mat(0x8a8a8a, { metal: 0.4, rough: 0.5 });
+    for (const c of track.def.crossings || []) {
+      const at = track.wrap(Math.round(c.at * N) - 22); // about 45 units before it
+      const sd = 1; // on the right, facing the karts coming
+      const rx = -tz[at], rz = tx[at];
+      const l = sd * (wallDist(at) + 2.5);
+      const x = px[at] + rx * l, z = pz[at] + rz * l, y = py[at];
+      const sign = new THREE.Group();
+      sign.position.set(x, y, z);
+      sign.rotation.y = Math.atan2(-tx[at], -tz[at]); // its face looks back down the road
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4.2, 8), post);
+      pole.position.y = 2.1;
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.4), new THREE.MeshLambertMaterial({ map: T.crossingSignTexture(c.kind), transparent: true, alphaTest: 0.1, side: THREE.DoubleSide }));
+      face.position.y = 4.6;
+      sign.add(pole, face);
+      sign.traverse((o) => (o.castShadow = true));
+      group.add(sign);
+    }
+    // Herds far from the road
+    const kinds = ["zebra", "elephant", "giraffe", "zebra", "lion", "hippo"];
+    for (let h = 0; h < 14; h++) {
+      let hx, hz, ok = false;
+      for (let tries = 0; tries < 40 && !ok; tries++) {
+        hx = b.minX - 120 + rand() * (b.maxX - b.minX + 240);
+        hz = b.minZ - 120 + rand() * (b.maxZ - b.minZ + 240);
+        const [i, d] = nearest(hx, hz, 6);
+        ok = i < 0 || d > wallDist(i) + 45;
+      }
+      if (!ok) continue;
+      const kind = kinds[h % kinds.length];
+      const n = kind === "lion" ? 2 : 2 + Math.floor(rand() * 4);
+      for (let j = 0; j < n; j++) {
+        const x = hx + (rand() - 0.5) * 22, z = hz + (rand() - 0.5) * 22;
+        place(kind, x, terrainHeight(x, z), z, 1.2 + rand() * 0.3, rand() * Math.PI * 2);
+      }
+    }
+  }
+
   function buildZoo() {
     // A spot inside enclosure zn: along its stretch, `out` units beyond the wall.
     const spot = (zn, u, out) => {
@@ -1268,6 +1319,21 @@ export function buildWorld(scene, track, quality = "high") {
 }
 
 // --------------------------------------------------------------- prototypes
+// Movable animals for Safari Run's crossings (the same models as Zoo City's), one group each
+export function animalMaker() {
+  const P = scenery("zoo");
+  return (kind) => {
+    const g = new THREE.Group();
+    for (const p of P[kind] || []) {
+      const m = new THREE.Mesh(p.geo, p.mat);
+      m.applyMatrix4(p.m);
+      m.castShadow = p.shadow !== false;
+      g.add(m);
+    }
+    return g;
+  };
+}
+
 function part(geo, material, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1, rx = 0, rz = 0, shadow = true) {
   const m = new THREE.Matrix4().compose(
     new THREE.Vector3(x, y, z),
@@ -1455,6 +1521,8 @@ function scenery(theme) {
     part(S(0.1, 6, 5), hippoSkin, 0.5, 1.8, 1.25),
     part(S(0.1, 6, 5), hippoSkin, -0.5, 1.8, 1.25),
   ];
+  const straw = flat(0xd9b45a);
+  P.tuft = [0, 1, 2, 3].map((j) => part(new THREE.ConeGeometry(0.18, 1.5, 4), straw, Math.cos(j * 1.7) * 0.35, 0.7, Math.sin(j * 1.7) * 0.35, 1, 1, 1, Math.cos(j) * 0.25, Math.sin(j) * 0.25, false));
   P.acacia = [
     part(C(0.3, 0.45, 4, 6), trunk, 0, 2, 0),
     part(C(3.2, 2.6, 0.8, 8), flat(0x6a9a3a), 0, 4.4, 0),

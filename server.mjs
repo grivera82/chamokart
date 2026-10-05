@@ -1171,7 +1171,7 @@ function cleanStatus(st) {
   const where = ["menu", "race", "lobby", "online", "watch"].includes(st?.where) ? st.where : "menu";
   const out = { where };
   if (where === "race") {
-    out.mode = ["gp", "vs", "tt", "daily", "tutorial"].includes(st.mode) ? st.mode : "vs";
+    out.mode = ["gp", "vs", "tt", "daily", "tutorial", "beta"].includes(st.mode) ? st.mode : "vs";
     out.track = clampInt(st.track, 0, TRACK_COUNT - 1, 0);
   }
   return out;

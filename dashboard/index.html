@@ -251,7 +251,7 @@
   <div id="tip"></div>
 
   <script type="module">
-    import { CHARACTERS, KARTS, TRACKS } from "../js/data.js?v=17";
+    import { CHARACTERS, KARTS, TRACKS } from "../js/data.js?v=20";
 
     const $ = (s) => document.querySelector(s);
     const el = (tag, cls, text) => {
@@ -311,7 +311,7 @@
     async function loadPortraits() {
       try {
         const THREE = await import("three");
-        const { renderPortraits } = await import("../js/view/showroom.js?v=21");
+        const { renderPortraits } = await import("../js/view/showroom.js?v=25");
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;

@@ -1,9 +1,10 @@
 // Race simulation: karts, items, rules, standings. Rendering-agnostic.
-import { TRACKS, AI_SKILL } from "../data.js?v=19";
+import { TRACKS, AI_SKILL, trackDef } from "../data.js?v=20";
 import { Track } from "./track.js?v=4";
-import { Kart } from "./kart.js?v=20";
+import { Kart } from "./kart.js?v=21";
 import { AIDriver } from "./ai.js?v=6";
-import { ItemSystem } from "./items.js?v=21";
+import { Crossings } from "./crossings.js?v=1";
+import { ItemSystem } from "./items.js?v=22";
 
 export const STEP = 1 / 120;
 export const COUNTDOWN = 3.2; // seconds of 3-2-1 before GO
@@ -21,7 +22,7 @@ export function mulberry32(seed) {
 
 const trackCache = new Map();
 export function getTrack(index) {
-  if (!trackCache.has(index)) trackCache.set(index, new Track(TRACKS[index]));
+  if (!trackCache.has(index)) trackCache.set(index, new Track(trackDef(index)));
   return trackCache.get(index);
 }
 
@@ -60,6 +61,9 @@ export class RaceSim {
     });
     this.kartMap = new Map(this.karts.map((k) => [k.id, k]));
     this.items = new ItemSystem(this);
+    // Beta: animals crossing the road (Safari Run)
+    this.crossings = t.def.crossings ? new Crossings(t, t.def.crossings) : null;
+    this.crossings?.update(this.time);
 
     this.ais = new Map();
     const baseSkill = AI_SKILL[opts.cc] ?? 0.95;
@@ -111,6 +115,7 @@ export class RaceSim {
   step(dt) {
     const prevTime = this.time;
     this.time += dt;
+    this.crossings?.update(this.time); // the herds keep walking during the countdown too
     if (this.time < -COUNTDOWN) this.phase = "intro";
     else if (this.time < 0) this.phase = "countdown";
     else if (this.phase !== "done") this.phase = "race";
@@ -153,6 +158,7 @@ export class RaceSim {
     for (const k of this.karts) if (k.local) k.step(dt, this);
     this.items.update(dt);
     this.collide();
+    if (this.crossings) this.checkCrossings();
 
     // Finish line
     for (const k of this.karts) {
@@ -160,6 +166,23 @@ export class RaceSim {
       if (k.dist >= this.laps * this.track.N) this.finishKart(k, this.time);
     }
     this.updatePlaces();
+  }
+
+  // Ran into an animal: the kart goes flying and the run is over (the session restarts it).
+  checkCrossings() {
+    for (const k of this.karts) {
+      if (!k.local || k.finished || k.crashed || k.respawnT > 0) continue;
+      const a = this.crossings.hit(k);
+      if (!a) continue;
+      k.crashed = a.kind;
+      k.endDrift(false);
+      Object.assign(k, { boostT: 0, starT: 0, tumbleT: 1.6, vy: 10, grounded: false });
+      // Bounce off it
+      const dx = k.x - a.x, dz = k.z - a.z, d = Math.hypot(dx, dz) || 1;
+      k.vx = (dx / d) * 9;
+      k.vz = (dz / d) * 9;
+      k.events.push("crash:" + a.kind);
+    }
   }
 
   finishKart(k, time) {

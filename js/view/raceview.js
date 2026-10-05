@@ -1,10 +1,11 @@
 // Renders a RaceSim: karts, items, particles, camera direction.
 import * as THREE from "three";
-import { buildWorld } from "./world.js?v=23";
-import { buildKart, buildBanana, buildCoco, buildItemBox, buildCoin, WHEEL_POS, mat, poseTransformer, TRANSFORM_TIME, buildBlueShell, buildBomb, buildFireball, buildBoomerang, buildBulletBill, buildPiranha, buildBoo } from "./models.js?v=24";
-import { Particles } from "./particles.js?v=8";
-import { shadowTexture, labelTexture } from "./textures.js?v=8";
-import { COUNTDOWN } from "../sim/race.js?v=21";
+import { buildWorld, animalMaker } from "./world.js?v=24";
+import { buildKart, buildBanana, buildCoco, buildItemBox, buildCoin, WHEEL_POS, mat, poseTransformer, TRANSFORM_TIME, buildBlueShell, buildBomb, buildFireball, buildBoomerang, buildBulletBill, buildPiranha, buildBoo } from "./models.js?v=25";
+import { Particles } from "./particles.js?v=9";
+import { shadowTexture, labelTexture } from "./textures.js?v=9";
+import { COUNTDOWN } from "../sim/race.js?v=22";
+import { ANIMALS } from "../sim/crossings.js?v=1";
 
 const TAU = Math.PI * 2;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -15,7 +16,7 @@ function angLerp(a, b, t) {
   return a + d * t;
 }
 const DRIFT_COLORS = [new THREE.Color(0xfff2b0), new THREE.Color(0x4aa8ff), new THREE.Color(0xff8a1a), new THREE.Color(0xd060ff)];
-const DUST = { meadow: 0x8a6a45, desert: 0xe0b27a, snow: 0xffffff, beach: 0xf2d9a2, neon: 0xb080ff, mars: 0xc8643a, miami: 0x8a8a92, zoo: 0x8a6a45 };
+const DUST = { meadow: 0x8a6a45, desert: 0xe0b27a, snow: 0xffffff, beach: 0xf2d9a2, neon: 0xb080ff, mars: 0xc8643a, miami: 0x8a8a92, zoo: 0x8a6a45, savanna: 0xc8a060 };
 
 // Comic speech bubbles: "Mashamiiiiii!" when the CX-9's doors move, "Meowww!" from Dorito.
 const bubbleTexs = new Map();
@@ -317,6 +318,17 @@ export class RaceView {
       return m;
     });
     this.objViews = new Map();
+    // Safari Run's crossing herds (positions come from sim.crossings)
+    this.herd = [];
+    if (sim.crossings) {
+      const make = animalMaker();
+      for (const a of sim.crossings.animals) {
+        const m = make(a.kind);
+        m.scale.setScalar(ANIMALS[a.kind]?.size || 1);
+        this.scene.add(m);
+        this.herd.push({ a, m });
+      }
+    }
     this.camYaw = null;
     this.camPos = new THREE.Vector3();
     this.camLook = new THREE.Vector3();
@@ -593,6 +605,19 @@ export class RaceView {
       cam.updateProjectionMatrix();
       return;
     }
+    if (k.crashed && this.mode === "race") {
+      // Ran into an animal (Safari Run): pull up and back to watch the wreck, clear of the herd
+      const a = k.yaw + Math.PI * 0.75;
+      const target = new THREE.Vector3(k.x + Math.sin(a) * 11, k.y + 7, k.z + Math.cos(a) * 11);
+      this.camPos.lerp(target, Math.min(1, dt * 4));
+      cam.position.copy(this.camPos);
+      this.camLook.set(k.x, k.y + 1, k.z);
+      cam.lookAt(this.camLook);
+      this.fov = lerp(this.fov, 60, dt * 3);
+      cam.fov = this.fov;
+      cam.updateProjectionMatrix();
+      return;
+    }
     if (k.finished && this.mode === "race") {
       // Victory orbit
       this.finishOrbit += dt * 0.45;
@@ -681,6 +706,15 @@ export class RaceView {
   update(dt, events) {
     const time = performance.now() / 1000;
     this.handleEvents(events || []);
+    for (const { a, m } of this.herd) {
+      // An animal walking right past the camera would fill the screen from inside: hide it
+      m.visible = (a.x - this.camera.position.x) ** 2 + (a.z - this.camera.position.z) ** 2 > 16;
+      // A walking bob while they cross; standing still while they wait
+      const bob = a.moving ? Math.abs(Math.sin(time * 7 + a.j)) * 0.15 : 0;
+      m.position.set(a.x, a.y + bob, a.z);
+      m.rotation.y = a.yaw;
+      m.rotation.z = a.moving ? Math.sin(time * 7 + a.j) * 0.04 : 0;
+    }
     for (const v of this.kartViews.values()) {
       v.update(dt, time);
       this.emitKartParticles(v, dt);

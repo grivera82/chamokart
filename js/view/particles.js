@@ -1,6 +1,6 @@
 // Pooled GPU point particles (sparks, smoke, confetti...).
 import * as THREE from "three";
-import { glowTexture } from "./textures.js?v=8";
+import { glowTexture } from "./textures.js?v=9";
 
 export class Particles {
   constructor(scene, max = 2500, additive = true) {

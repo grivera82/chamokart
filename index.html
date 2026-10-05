@@ -34,7 +34,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=37" />
+  <link rel="stylesheet" href="css/style.css?v=39" />
   <script src="js/crash.js?v=1"></script>
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
@@ -62,6 +62,7 @@
 
   <!-- Main menu -->
   <section id="menu" class="screen">
+    <button id="beta-chip" class="players-chip beta-chip" data-action="beta">🧪 Beta</button>
     <button id="players-chip" class="players-chip" data-action="players">👥 <span id="players-count">Players</span></button>
     <div class="panel menu-panel">
       <div class="logo small"><span class="l1">CHAMO</span><span class="l2">KART</span></div>
@@ -405,6 +406,19 @@
     </div>
   </section>
 
+  <!-- Beta: experiments to try before they're finished -->
+  <section id="beta" class="screen">
+    <div class="panel records-panel beta-panel">
+      <h2 class="screen-title">🧪 Beta</h2>
+      <p class="muted">Try new things before they're finished. They might change, break or disappear, and your times here only count on this device. Tell us what you think!</p>
+      <div id="beta-list" class="beta-list"></div>
+      <div class="row end">
+        <button class="btn ghost" data-action="feedback">💬 Send feedback</button>
+        <button class="btn primary" data-action="back">Back</button>
+      </div>
+    </div>
+  </section>
+
   <!-- A challenge from another player -->
   <section id="challenge" class="screen overlay">
     <div class="panel small-panel challenge-panel">
@@ -544,6 +558,7 @@
       <div class="hud-lap"><small>LAP</small> <span id="hud-lap">1/3</span></div>
       <div id="hud-splits" class="hud-splits"></div>
       <div id="hud-records" class="hud-records"></div>
+      <div id="hud-warn" class="hud-warn"></div>
     </div>
     <div id="hud-standings" class="hud-standings"></div>
     <canvas id="hud-minimap" class="hud-minimap"></canvas>
@@ -556,6 +571,7 @@
     <div id="hud-splat"></div>
     <div id="hud-flash"></div>
     <button id="pause-btn" class="pause-btn" aria-label="Pause">❚❚</button>
+    <button id="hud-restart" class="hud-restart" data-action="quick-restart" aria-label="Restart" title="Restart (R)">↻</button>
     <div id="hud-social" class="hud-social">
       <div id="hud-feed" class="hud-feed"></div>
       <div class="hud-voice">
@@ -639,6 +655,6 @@
 
   <div id="toasts" class="toasts"></div>
 
-  <script type="module" src="js/main.js?v=56"></script>
+  <script type="module" src="js/main.js?v=58"></script>
 </body>
 </html>

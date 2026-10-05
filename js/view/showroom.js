@@ -1,7 +1,7 @@
 // Turntable scene for the character select screen + portrait renderer.
 import * as THREE from "three";
-import { buildKart, mat, poseTransformer, TRANSFORM_TIME } from "./models.js?v=24";
-import { CHARACTERS } from "../data.js?v=19";
+import { buildKart, mat, poseTransformer, TRANSFORM_TIME } from "./models.js?v=25";
+import { CHARACTERS } from "../data.js?v=20";
 import { lookKey } from "../look.js?v=3";
 
 function lights(scene) {

@@ -1,5 +1,23 @@
 [
   {
+    "id": "2026-10-05",
+    "title": "↻ Restart anytime",
+    "items": [
+      "Bad start in a Time Trial? Press R (or tap ↻ at the top of the screen, or Back on a gamepad) to start over instantly, straight to the countdown.",
+      "Works in the Daily Challenge and the 🧪 Safari Run beta too. Restart race in the pause menu skips the flyover now as well."
+    ]
+  },
+  {
+    "id": "2026-10-02b",
+    "title": "🧪 Beta: Safari Run",
+    "items": [
+      "New 🧪 Beta button on the main menu: try new things before they're finished, and tell us what you think.",
+      "First up, Safari Run: a Time Trial on a brand-new savanna map where zebras, elephants, lions, giraffes and hippos wander across the road. Hit one and it's back to the start!",
+      "Watch for the yellow signs and the ⚠️ warning under your timer (it blinks while animals are on the road). Every run plays out the same way, so you can learn the timing.",
+      "Your best clean run and its ghost are saved on your device."
+    ]
+  },
+  {
     "id": "2026-10-02",
     "title": "🔔 Never miss a beat",
     "items": [
