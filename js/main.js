@@ -401,7 +401,12 @@ class App {
     const idx = log.findIndex((e) => e.id === seen);
     const newCount = seen == null ? 0 : idx < 0 ? log.length : idx;
     const list = $("#whatsnew-list");
-    $('[data-action="whatsnew"]').hidden = !log.length;
+    if (!log.length) {
+      const p = document.createElement("p");
+      p.className = "muted wn-empty";
+      p.textContent = "Nothing new yet. Updates to the game will show up here.";
+      list.append(p);
+    }
     log.forEach((entry, i) => {
       const card = document.createElement("div");
       card.className = "card wn-entry" + (i < newCount ? " new" : "");
