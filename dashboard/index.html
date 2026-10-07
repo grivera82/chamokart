@@ -86,15 +86,6 @@
     .st-bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--purple); border-radius: 0 4px 4px 0; min-width: 2px; }
     .st-bar .val { min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
 
-    /* daily activity columns */
-    .st-days { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; align-items: end; height: 150px; border-bottom: 2px solid #d9d2ea; position: relative; }
-    .st-days .col { height: 100%; display: flex; align-items: flex-end; }
-    .st-days .col i { display: block; width: 100%; background: var(--purple); border-radius: 4px 4px 0 0; min-height: 2px; }
-    .st-days .col.zero i { background: #e2dcef; }
-    .st-days .col:hover i { background: var(--red); }
-    .st-days-axis { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; color: var(--muted); }
-    .st-days-max { position: absolute; top: 0; left: 0; right: 0; border-top: 1px dashed #d9d2ea; font-size: 11px; font-weight: 800; color: var(--muted); padding-left: 2px; pointer-events: none; }
-
     /* fastest laps */
     .st-laps-tabs { display: grid; grid-template-columns: repeat(8, 1fr); align-self: stretch; }
     .st-laps-tabs button { padding: 8px 6px; line-height: 1.15; }
@@ -157,6 +148,92 @@
     .fix-form textarea { font: inherit; font-weight: 700; font-size: 14px; min-height: 70px; padding: 8px 10px; border: 3px solid var(--ink); border-radius: 12px; resize: vertical; }
     .fix-err { background: #ffe1e1; border-radius: 10px; padding: 6px 10px; font-weight: 800; font-size: 13px; margin-top: 8px; overflow-wrap: anywhere; }
 
+    /* 📈 analytics (dashboard/analytics.js) */
+    .an-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+    .an-nav a { color: #fff; text-decoration: none; font-weight: 900; font-size: 14px; background: rgba(0, 0, 0, 0.22); padding: 5px 12px; border-radius: 999px; }
+    .an-nav a:hover { background: rgba(0, 0, 0, 0.38); }
+    .an-section { display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 12px; }
+    .an-h { font-family: var(--display); font-weight: 400; font-size: 34px; margin: 6px 0 0; color: #fff; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; letter-spacing: 0.5px; scroll-margin-top: 12px; }
+    .an-top-row { display: flex; align-items: center; gap: 12px 18px; flex-wrap: wrap; }
+    .an-top-row .an-h { margin: 0; }
+    .an-filters { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
+    .an-seg button { padding: 6px 12px; font-size: 14px; }
+    .an-note { color: #fff; font-weight: 800; font-size: 13px; opacity: 0.9; }
+    .an-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .an-tile { display: flex; flex-direction: column; cursor: help; }
+    .an-tile .an-tl { order: -1; }
+    .an-tile b { font-size: 32px; }
+    .an-tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 26px; }
+    .st-tile .an-delta { font-size: 13px; font-weight: 900; color: var(--muted); white-space: nowrap; }
+    .st-tile .an-delta.up { color: #13804f; }
+    .st-tile .an-delta.down { color: #c2312f; }
+    .an-spark { flex: none; }
+    .an-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    .an-card-head { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+    .an-card-head h2 { flex: 1 1 0; min-width: 0; }
+    .an-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+    .an-tview { flex: none; }
+    .an-body { min-width: 0; }
+    .an-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .an-tick { font: 800 11px var(--body); fill: var(--muted); font-variant-numeric: tabular-nums; }
+    .an-endlbl { font: 900 12px var(--body); fill: var(--ink); font-variant-numeric: tabular-nums; }
+    .an-col .an-hit { cursor: crosshair; outline: none; }
+    .an-col:hover .an-hit, .an-col .an-hit:focus { fill: rgba(29, 21, 48, 0.06); }
+    .an-col.partial path, .an-col.partial rect:not(.an-hit) { opacity: 0.55; }
+    .an-legend { display: flex; gap: 6px 16px; flex-wrap: wrap; font-weight: 800; font-size: 13px; color: var(--ink); margin-bottom: 4px; }
+    .an-key { display: inline-flex; align-items: center; gap: 6px; }
+    .an-key i.rect { width: 12px; height: 12px; border-radius: 3px; }
+    .an-key i.line { width: 16px; height: 3px; border-radius: 2px; }
+    .an-foot { color: var(--muted); font-weight: 800; font-size: 13px; margin: 8px 0 0; }
+    .an-sub { font-family: var(--display); font-weight: 400; font-size: 17px; margin: 12px 0 6px; }
+    .st-bar .fill.an-fill { background: #2a78d6; }
+    .st-bar[data-tip] { cursor: default; outline: none; border-radius: 6px; }
+    .st-bar[data-tip]:hover, .st-bar[data-tip]:focus { background: #f5f2fb; }
+    .an-table-wrap { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+    .an-table { width: 100%; border-collapse: collapse; font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .an-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); padding: 4px 8px; border-bottom: 2px solid #e8e3ef; position: sticky; top: 0; background: #fff; white-space: nowrap; }
+    .an-table td { padding: 5px 8px; border-bottom: 1px solid #efeaf5; white-space: nowrap; }
+    .an-table .num { text-align: right; }
+    .an-table.an-top td { padding: 4px 8px; }
+    .an-table.an-top .st-who img, .an-table.an-top .st-av { width: 28px; height: 28px; }
+    .an-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .an-kpi { background: #f5f2fb; border-radius: 12px; padding: 8px 12px; }
+    .an-kpi b { display: block; font-family: var(--display); font-weight: 400; font-size: 28px; line-height: 1.1; }
+    .an-kpi span { color: var(--muted); font-weight: 800; font-size: 13px; }
+    .an-cohorts { display: grid; gap: 2px; font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums; overflow-x: auto; }
+    .an-ch { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); padding: 2px 6px; white-space: nowrap; }
+    .an-ch.mid { text-align: center; }
+    .an-cw { padding: 5px 6px; white-space: nowrap; }
+    .an-cell { text-align: center; padding: 5px 2px; border-radius: 4px; outline: none; }
+    .an-cell.empty { background: transparent; }
+    .an-cell.partial { box-shadow: inset 0 0 0 2px #fcfaf9; background-image: repeating-linear-gradient(45deg, transparent 0 5px, rgba(255, 255, 255, 0.35) 5px 7px); }
+    .an-cell:focus, .an-hc:focus { box-shadow: 0 0 0 2px var(--ink); }
+    .num { text-align: right; }
+    .an-heat { display: grid; grid-template-columns: 34px repeat(24, minmax(10px, 1fr)); gap: 2px; font-weight: 800; font-size: 11px; color: var(--muted); }
+    .an-hh { white-space: nowrap; overflow: visible; font-size: 10px; }
+    .an-hd { align-self: center; }
+    .an-hc { aspect-ratio: 1.3; min-height: 14px; background: #f1edf6; border-radius: 3px; outline: none; }
+    .an-scale { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 12px; color: var(--muted); margin-top: 8px; }
+    .an-scale i { width: 120px; height: 10px; border-radius: 3px; }
+    .an-funnel { display: flex; flex-direction: column; gap: 8px; }
+    .an-fstep { display: grid; grid-template-columns: minmax(110px, 38%) 1fr auto; gap: 10px; align-items: center; font-weight: 800; font-size: 14px; outline: none; border-radius: 6px; }
+    .an-fstep:hover, .an-fstep:focus { background: #f5f2fb; }
+    .an-ftrack { height: 20px; background: #efe9fb; border-radius: 4px; position: relative; }
+    .an-ffill { position: absolute; inset: 0 auto 0 0; border-radius: 0 4px 4px 0; min-width: 2px; }
+    .an-fval { min-width: 64px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .an-fval small { color: var(--muted); font-weight: 800; }
+    #tip { white-space: pre-line; }
+
+    @media (max-width: 900px) {
+      .an-tiles { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .an-h { font-size: 28px; }
+      .an-tile b { font-size: 26px; }
+      .an-kpis { grid-template-columns: 1fr; }
+      .an-heat { grid-template-columns: 30px repeat(24, minmax(8px, 1fr)); gap: 1px; }
+      .an-hh { font-size: 9px; }
+    }
     @media (max-width: 600px) {
       .st-title h1 { font-size: 34px; }
       .st-tile b { font-size: 28px; }
@@ -176,8 +253,32 @@
       </div>
       <button class="btn" id="refresh">↻ Refresh</button>
     </header>
+    <nav class="an-nav">
+      <a href="#analytics">📈 Analytics</a><a href="#feedback">💬 Feedback</a><a href="#bugs">🐞 Bugs</a><a href="#ideas">💡 Ideas</a><a href="#players-panel">👥 Players</a><a href="#all-time">🏆 All time</a>
+    </nav>
 
-    <section class="st-tiles" id="tiles"></section>
+    <section class="an-section" id="analytics">
+      <div class="an-top-row">
+        <h2 class="an-h">📈 Analytics</h2>
+        <div class="an-filters" id="an-filters"></div>
+      </div>
+      <div class="an-tiles" id="an-tiles"></div>
+      <section class="panel st-panel an-card" id="an-main"></section>
+      <div class="st-grid">
+        <section class="panel st-panel an-card" id="an-active"></section>
+        <section class="panel st-panel an-card" id="an-retention"></section>
+      </div>
+      <section class="panel st-panel an-card" id="an-hours"></section>
+      <div class="st-grid">
+        <section class="panel st-panel an-card" id="an-funnel"></section>
+        <section class="panel st-panel an-card" id="an-sources"></section>
+        <section class="panel st-panel an-card" id="an-countries"></section>
+        <section class="panel st-panel an-card" id="an-devices"></section>
+        <section class="panel st-panel an-card" id="an-events"></section>
+        <section class="panel st-panel an-card" id="an-top"></section>
+      </div>
+    </section>
+
 
     <section class="panel st-panel" id="feedback-panel">
       <h2 id="feedback">💬 Feedback <small id="fb-count"></small></h2>
@@ -207,7 +308,7 @@
       <div id="idea-list"></div>
     </section>
 
-    <section class="panel st-panel">
+    <section class="panel st-panel" id="players-panel">
       <h2>Players <small id="players-count"></small></h2>
       <div class="st-tools">
         <input id="search" placeholder="Search name, city, country or IP…" autocomplete="off" spellcheck="false" />
@@ -215,11 +316,9 @@
       <div class="st-table-wrap"><table class="st-table" id="players"></table></div>
     </section>
 
+    <h2 class="an-h" id="all-time">🏆 All time</h2>
+    <section class="st-tiles" id="tiles"></section>
     <div class="st-grid">
-      <section class="panel st-panel">
-        <h2>Daily activity <small>visits, last 30 days</small></h2>
-        <div id="days"></div>
-      </section>
       <section class="panel st-panel">
         <h2>Where they play from <small>players per country</small></h2>
         <div id="countries" class="st-bars"></div>
@@ -252,6 +351,7 @@
 
   <script type="module">
     import { CHARACTERS, KARTS, TRACKS } from "../js/data.js?v=20";
+    import { showAnalytics } from "./analytics.js?v=1";
 
     const $ = (s) => document.querySelector(s);
     const el = (tag, cls, text) => {
@@ -533,32 +633,6 @@
           body.append(dr);
         }
       }
-    }
-
-    function renderDays() {
-      const root = $("#days");
-      root.innerHTML = "";
-      const days = [];
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-        days.push({ d, ...(data.days[d] || { visits: 0, races: 0, pids: [] }) });
-      }
-      const max = Math.max(1, ...days.map((d) => d.visits));
-      const chart = el("div", "st-days");
-      const cap = el("div", "st-days-max", nf.format(max));
-      chart.append(cap);
-      const label = (d) => new Date(d + "T12:00:00Z").toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" });
-      for (const d of days) {
-        const col = el("div", "col" + (d.visits ? "" : " zero"));
-        col.dataset.tip = `${label(d.d)}: ${d.visits} visits · ${d.pids.length} players · ${d.races} races`;
-        const bar = el("i");
-        bar.style.height = (d.visits / max) * 100 + "%";
-        col.append(bar);
-        chart.append(col);
-      }
-      const axis = el("div", "st-days-axis");
-      axis.append(el("span", "", label(days[0].d)), el("span", "", "Today"));
-      root.append(chart, axis);
     }
 
     function renderCharts() {
@@ -1082,9 +1156,9 @@
       renderIdeas();
       renderTiles();
       renderPlayers();
-      renderDays();
       renderCharts();
       renderLaps();
+      showAnalytics(data, { regionName, flag, avatar });
       $("#updated").textContent = `Updated ${new Date(data.now).toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" })}`;
     }
 

@@ -1284,7 +1284,9 @@ function playersView() {
 function sendPlayers() {
   clearTimeout(playersTimer);
   playersTimer = setTimeout(() => {
-    const data = JSON.stringify({ t: "players", list: playersView() });
+    const list = playersView();
+    stats.online(list.length); // the day's busiest moment, for the dashboard
+    const data = JSON.stringify({ t: "players", list });
     for (const c of presenceClients()) send(c, data);
   }, 300);
 }
@@ -1528,7 +1530,12 @@ function handle(client, msg) {
       if (!validPid(msg.pid)) return;
       client.pid = msg.pid;
       const device = ["phone", "tablet", "desktop"].includes(msg.device) ? msg.device : "";
-      stats.visit(msg.pid, client.geo, profileFrom(msg), { device, browser: String(msg.browser || "").slice(0, 40) });
+      stats.visit(msg.pid, client.geo, profileFrom(msg), { device, browser: String(msg.browser || "").slice(0, 40), source: typeof msg.src === "string" ? msg.src : "" });
+      return send(client, { t: "ok" });
+    }
+    case "event": {
+      // A moment worth counting on the dashboard (finished the tutorial, turned on notifications…)
+      if (validPid(msg.pid) && typeof msg.ev === "string") stats.event(msg.pid, client.geo, msg.ev);
       return send(client, { t: "ok" });
     }
     case "race": {
@@ -1826,6 +1833,7 @@ wss.on("connection", (socket, req) => {
     clients.delete(client.id);
     if (client.presence) {
       lastSeen.set(client.uid, now());
+      if (client.pid && client.presenceSince) stats.session(client.pid, now() - client.presenceSince); // how long the game was open
       sendPlayers();
       if (client.watching) sendWatchers(client.watching, false);
       // Their last connection closed: anyone watching them hears they've gone

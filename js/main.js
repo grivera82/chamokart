@@ -220,6 +220,7 @@ class App {
     serverRequest({ t: "feedback", pid: this.pid, name: s.name || CHARACTERS[s.char].name, char: s.char, look: this.lookFor(s.char), text, ctx })
       .then((m) => {
         if (!m.ok) throw new Error(m.error || "no");
+        this.track("feedback");
         $("#feedback-text").value = "";
         this.back();
         this.toast("💬 Thanks! Your feedback was sent.");
@@ -289,7 +290,18 @@ class App {
   // ------------------------------------------------------------------ boot
   async boot() {
     const canvas = $("#game");
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.settings.quality !== "low", alpha: true, powerPreference: "high-performance" });
+    try {
+      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.settings.quality !== "low", alpha: true, powerPreference: "high-performance" });
+    } catch (err) {
+      // Some GPUs/browsers refuse the fancy options; retry with the plainest context before giving up.
+      try {
+        this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+      } catch (err2) {
+        err2.noReport = true; // no WebGL on this device: nothing the game can fix
+        err2.message = "Your browser couldn't start 3D graphics. Check that hardware acceleration is on, or try another browser.";
+        throw err2;
+      }
+    }
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -360,7 +372,7 @@ class App {
     this.syncAccount();
     this.fetchBeaten();
     this.startPresence();
-    this.report({ t: "hello", device: isTouch ? (Math.min(screen.width, screen.height) >= 700 ? "tablet" : "phone") : "desktop", browser: browserName() });
+    this.report({ t: "hello", src: this.trafficSource(), device: isTouch ? (Math.min(screen.width, screen.height) >= 700 ? "tablet" : "phone") : "desktop", browser: browserName() });
   }
 
   // ------------------------------------------------------------------ the Custom racer
@@ -386,6 +398,36 @@ class App {
       this.lookPortraits.set(key, url);
     }
     return url;
+  }
+
+  // How this visit found the game, for the dashboard: ?s= on our own shared links (invite,
+  // share, ghost), a utm_source, or the site that linked here. The tag is then dropped from
+  // the address bar so it isn't shared on.
+  trafficSource() {
+    const q = new URLSearchParams(location.search);
+    let src = q.get("s") || q.get("utm_source") || "";
+    if (!src && document.referrer) {
+      try {
+        const host = new URL(document.referrer).hostname;
+        if (host !== location.hostname) src = host;
+      } catch {}
+    }
+    if (q.has("s") || [...q.keys()].some((k) => k.startsWith("utm_"))) {
+      for (const k of [...q.keys()]) if (k === "s" || k.startsWith("utm_")) q.delete(k);
+      const rest = q.toString();
+      history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+    }
+    return src || "direct";
+  }
+
+  // A link to the game for sharing, tagged with where it was shared from
+  siteLink(source, hash = "") {
+    return `${location.origin}${location.pathname}?s=${source}${hash}`;
+  }
+
+  // A moment worth counting on the dashboard (see EVENTS in stats.mjs)
+  track(ev) {
+    this.report({ t: "event", ev });
   }
 
   // Player stats for the stats page; failures are ignored.
@@ -1375,7 +1417,8 @@ class App {
       case "invite-whatsapp": {
         const code = this.room?.code;
         if (!code) break;
-        const url = `${location.origin}${location.pathname}#room=${code}`;
+        const url = this.siteLink("invite", `#room=${code}`);
+        this.track("invite");
         this.openWhatsApp(`🏁 Let's race! Join my Kart Chaos room ${code}: ${url}`);
         break;
       }
@@ -1396,7 +1439,8 @@ class App {
         this.show(this.shareFrom || "results", false);
         break;
       case "copy-link": {
-        const url = `${location.origin}${location.pathname}#room=${this.room?.code}`;
+        const url = this.siteLink("invite", `#room=${this.room?.code}`);
+        this.track("invite");
         if (isTouch && navigator.share) {
           navigator.share({ title: "Kart Chaos", text: `Race me in Kart Chaos! Room ${this.room?.code}`, url }).catch(() => {});
           break;
@@ -2086,7 +2130,7 @@ class App {
 
   shareText() {
     const i = this.shareInfo || {};
-    return `${i.title} ${i.big} · ${i.sub}${i.badge ? ` · ${i.badge}` : ""}. Can you beat me? 🏁 ${location.origin}${location.pathname}`;
+    return `${i.title} ${i.big} · ${i.sub}${i.badge ? ` · ${i.badge}` : ""}. Can you beat me? 🏁 ${this.siteLink("share")}`;
   }
 
   // Draw the card for the last result and show it, ready to share or save.
@@ -2094,6 +2138,7 @@ class App {
     const info = this.shareInfo;
     if (!info) return;
     audio.play("select");
+    this.track("share");
     const from = (this.shareFrom = this.screen);
     // The race behind the results: render a fresh frame and grab it before it's cleared
     let shot = null;
@@ -2356,6 +2401,7 @@ class App {
       }
       const m = await serverRequest({ t: "push-sub", pid: this.pid, sub: sub.toJSON(), prefs: this.pushPrefs() });
       this.pushOn = !!m.ok;
+      if (this.pushOn) this.track("notify-on");
       if (!m.ok) this.toast("Couldn't turn on notifications right now.", true);
       return this.pushOn;
     } catch {
@@ -2409,6 +2455,7 @@ class App {
     const p = this.players.find((x) => x.uid === uid);
     if (!p) return this.toast("They just left.", true);
     audio.play("select");
+    this.track("challenge");
     if (!this.settings.name) {
       this.settings.name = CHARACTERS[this.settings.char].name;
       this.save();
@@ -2524,7 +2571,8 @@ class App {
       .then((m) => {
         if (!m.ok) return this.toast(m.error === "slow" ? "That's a lot of challenges for one day! Try again tomorrow." : "This run can't be sent as a challenge, sorry.", true, 4000);
         const where = TRACKS[run.track].name;
-        const link = `${location.origin}${location.pathname}#ghost=${m.code}`;
+        const link = this.siteLink("ghost", `#ghost=${m.code}`);
+        this.track("ghost-challenge");
         this.gchalText = `👻 Beat my ghost! I did ${where} in ${fmtTime(run.time)} on Kart Chaos. Think you're faster? ${link}`;
         $("#gchal-share-text").textContent = `Your ${fmtTime(run.time)} on ${where} is ready. Whoever opens this link races your ghost, and you'll see how they did next time you play.`;
         $("#gchal-link").value = link;
@@ -2651,6 +2699,7 @@ class App {
   // ------------------------------------------------------------------ the tutorial
   startTutorial() {
     audio.play("select");
+    this.track("tutorial-start");
     const s = this.settings;
     this.flow = "tutorial";
     this.startRace({
@@ -2666,6 +2715,7 @@ class App {
   onTutorialDone(session) {
     if (this.session !== session) return;
     store.set("tutorialDone", true);
+    this.track("tutorial-done");
     audio.play("finish");
     session.paused = true;
     this.show("tutorial-done", false);
@@ -2892,6 +2942,7 @@ class App {
     s.kart = this.draftKart;
     s.char = CUSTOM;
     this.save();
+    this.track("custom-saved");
     const card = $(`.char-card[data-char="${CUSTOM}"] img`);
     if (card) card.src = this.portraitFor(CUSTOM, d);
     this.sendProfile();
@@ -2906,6 +2957,7 @@ class App {
     if (!p) return this.toast("They just left.", true);
     if (!this.presence?.uid) return this.toast("Not connected to the server yet.", true);
     audio.play("select");
+    this.track("watch");
     this.watch = { uid, name: p.name, char: p.char, state: "connecting" };
     this.hideScreens();
     document.activeElement?.blur?.();
@@ -3553,6 +3605,6 @@ window.ckCrashContext = () => {
 };
 app.boot().catch((err) => {
   console.error(err);
-  window.ckReport?.(err);
+  if (!err.noReport) window.ckReport?.(err);
   $("#load-msg").textContent = "Oops! Something went wrong starting the game: " + err.message;
 });

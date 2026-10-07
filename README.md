@@ -116,7 +116,10 @@ nginx protects it with basic auth, using the password file `/etc/nginx/kartchaos
 To add or change a login, run `htpasswd -B /etc/nginx/kartchaos-stats.htpasswd <user>`.
 On the tailnet it needs no password: `https://<this machine's tailnet name>:8443/chamokart/dashboard/`. `tailscale serve --https=8443` proxies that to a localhost-only nginx site, `/etc/nginx/sites-available/kartchaos-tailnet`.
 
-- **What the game reports:** a `hello` on every load, each finished Grand Prix, Versus or Time Trial race, and each finished cup. Each report goes over a short-lived WebSocket.
+- **What the game reports:** a `hello` on every load (with where the visit came from), each finished Grand Prix, Versus or Time Trial race, each finished cup, and a few key moments (`event`: tutorial started or finished, notifications on, share, invite, watch…). Each report goes over a short-lived WebSocket.
+- **Traffic sources:** links the game shares carry `?s=invite`, `?s=share` or `?s=ghost`, so a visit from WhatsApp still says where it came from. Otherwise it's `utm_source` or the referring site, and "direct" when there's none. The game removes the tag from the address bar.
+- **📈 Analytics:** the top of the page (`dashboard/analytics.js`) works it all out in the browser from the daily records: visitors (new and returning) by day, week or month; daily, weekly and monthly active players; retention by first week; a weekday-by-hour heatmap; how far new players get; sources, countries, devices, key moments and the most active players. Filter by 7, 30 or 90 days or all time, and every chart has a table view.
+- **Daily records:** kept for 400 days. Each day has its visits, races and the players who came. Since 2026-10-07 it also has visits by UTC hour, sessions and play time (how long the game was open, from the presence connection), sources, countries, devices, modes, tracks, key moments, races per player and the most players online at once.
 - **Online races:** recorded by the server itself when each race ends.
 - **Storage:** `$STATE_DIRECTORY/stats.json`, which is `/var/lib/kartchaos/stats.json` in production.
 - **Location data:** comes from Cloudflare's request headers. `CF-Connecting-IP` and `CF-IPCountry` are always sent. City and region need Cloudflare's *Add visitor location headers* managed transform.
