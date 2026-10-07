@@ -1159,6 +1159,9 @@ class App {
       case "tutorial":
         this.startTutorial();
         break;
+      case "quick-restart":
+        this.quickRestart(); // the ↻ button in Time Trial (R and a gamepad's Back do the same)
+        break;
       case "tut-skip":
         this.session?.tutorial?.skip();
         break;
