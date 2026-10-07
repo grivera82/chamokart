@@ -437,16 +437,6 @@ body.watching .touch, body.watching .pause-btn, body.watching .hud-social, body.
 }
 
 /* ---------------------------------------------------------------- players and challenges */
-.beta-chip { left: max(14px, env(safe-area-inset-left)); right: auto !important; background: #ffe9f6; }
-.beta-panel { width: min(560px, 100%); }
-.beta-panel > p { margin: 0; }
-.beta-list { display: flex; flex-direction: column; gap: 10px; }
-.beta-card { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-radius: 14px; border: 3px solid var(--ink); background: linear-gradient(135deg, #fff6d8, #ffe2b0); box-shadow: 0 3px 0 var(--ink); }
-.beta-card h3 { margin: 0; display: flex; align-items: center; gap: 8px; }
-.beta-card h3 small { font-family: var(--body); font-weight: 900; font-size: 11px; letter-spacing: 1px; color: #fff; background: #d4246e; border-radius: 6px; padding: 2px 6px; }
-.beta-card p { margin: 0; grid-column: 1; font-weight: 700; font-size: 14px; }
-.beta-card .beta-best { grid-column: 1; font-weight: 900; font-size: 13px; color: var(--muted); }
-.beta-card .btn { grid-column: 2; grid-row: 1 / span 3; }
 .hud-warn { margin-top: 6px; display: inline-block; padding: 4px 10px; border-radius: 8px; background: #ffd21f; color: #1a1a1a; border: 3px solid #1a1a1a; font-size: 17px; letter-spacing: 0.5px; text-shadow: none; }
 .hud-warn:empty { display: none; }
 .hud-warn.live { animation: warnBlink 0.5s steps(2) infinite; background: #ff5a2a; color: #fff; }

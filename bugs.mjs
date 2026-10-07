@@ -15,16 +15,20 @@ const FIX_STATES = ["queued", "running", "ready", "no-fix", "failed", "cancelled
 const text = (v, max) => String(v ?? "").replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "").slice(0, max);
 const line = (v, max) => text(v, max).replace(/\s+/g, " ").trim();
 
-// "at update (https://jgrivera.com/chamokart/js/sim/kart.js?v=12:340:17)" or "update@https://…/kart.js?v=12:340:17"
+// A URL in the game's own code (kartchaos.com, or the old jgrivera.com/chamokart/), as a match
+// whose [1] is the file's path: not three.js from its CDN, not browser extensions.
+const gamePath = (u) => u.match(/^https?:\/\/(?:(?:www\.)?kartchaos\.com|[^/]+\/chamokart)\/([^?#]*)/);
+
+// "at update (https://kartchaos.com/js/sim/kart.js?v=12:340:17)" or "update@https://…/kart.js?v=12:340:17"
 // -> { fn: "update", file: "js/sim/kart.js", line: 340 } for the first frame in the game's own code.
 function topFrame(stack, file, lineNo) {
   for (const l of String(stack).split("\n")) {
     const m = l.match(/(?:at\s+(?:async\s+)?([^\s(]*)\s*\(?|^\s*([^@]*)@)(https?:\/\/[^\s)]+?):(\d+):\d+\)?\s*$/);
     if (!m) continue;
-    const path = m[3].match(/\/chamokart\/([^?#]*)/);
+    const path = gamePath(m[3]);
     if (path) return { fn: m[1] || m[2] || "", file: path[1] || "index.html", line: Number(m[4]) };
   }
-  const path = String(file).match(/\/chamokart\/([^?#]*)/);
+  const path = gamePath(String(file));
   return path ? { fn: "", file: path[1] || "index.html", line: lineNo || 0 } : { fn: "", file: "", line: 0 };
 }
 

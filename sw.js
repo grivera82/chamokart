@@ -1,4 +1,4 @@
-// Chamo Kart service worker: shows push notifications ("Ana is playing", challenges, and
+// Kart Chaos service worker: shows push notifications ("Ana is playing", challenges, and
 // feedback pings for the stats page) and opens the right page when one is tapped.
 // It doesn't cache anything.
 self.addEventListener("install", () => self.skipWaiting());
@@ -10,20 +10,20 @@ self.addEventListener("push", (e) => {
     data = e.data ? e.data.json() : {};
   } catch {}
   e.waitUntil(
-    self.registration.showNotification(data.title || "Chamo Kart", {
+    self.registration.showNotification(data.title || "Kart Chaos", {
       body: data.body || "",
       icon: "apple-touch-icon.png",
       badge: "apple-touch-icon.png",
       tag: data.tag || "chamokart",
       renotify: true,
-      data: { url: data.url || "/chamokart/" },
+      data: { url: data.url || self.registration.scope },
     })
   );
 });
 
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
-  const url = new URL(e.notification.data?.url || "/chamokart/", self.location.origin).href;
+  const url = new URL(e.notification.data?.url || self.registration.scope, self.location.origin).href;
   e.waitUntil(
     (async () => {
       const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });

@@ -65,21 +65,22 @@ export async function drawShareCard(card) {
   g.fillStyle = shade;
   g.fillRect(0, 0, SIZE, SIZE);
 
-  // Logo (like the title screen): yellow CHAMO over a red KART plate
+  // Logo (like the title screen): yellow KART over a red CHAOS plate
   g.save();
   g.translate(70, 60);
   g.rotate(-0.05);
   g.textBaseline = "top";
   g.font = `92px ${display}`;
-  outlined(g, "CHAMO", 0, 0, "#ffd23f", "#1d1530", 14);
+  outlined(g, "KART", 18, 0, "#ffd23f", "#1d1530", 14);
+  g.font = `70px ${display}`;
+  const plate = g.measureText("CHAOS").width + 56;
   g.fillStyle = "#e23b3b";
   g.strokeStyle = "#1d1530";
   g.lineWidth = 8;
-  roundRect(g, 30, 96, 250, 84, 16);
+  roundRect(g, 10, 96, plate, 84, 16);
   g.fill();
   g.stroke();
-  g.font = `70px ${display}`;
-  outlined(g, "KART", 58, 102, "#fff", "#1d1530", 10);
+  outlined(g, "CHAOS", 38, 102, "#fff", "#1d1530", 10);
   g.restore();
 
   // Track map, top right
@@ -152,7 +153,7 @@ export async function drawShareCard(card) {
   g.fillText(sub, 60, SIZE - 88);
   g.font = `800 34px ${body}`;
   g.fillStyle = "#ffd23f";
-  g.fillText("jgrivera.com/chamokart  ·  Can you beat me?", 60, SIZE - 40);
+  g.fillText("kartchaos.com  ·  Can you beat me?", 60, SIZE - 40);
 
   return new Promise((resolve) => c.toBlob(resolve, "image/png"));
 }

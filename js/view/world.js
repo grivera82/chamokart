@@ -558,7 +558,7 @@ export function buildWorld(scene, track, quality = "high") {
       cap.position.set(s * span, 9.4, 0);
       gate.add(cap);
     }
-    const bannerMat = new THREE.MeshBasicMaterial({ map: T.bannerTexture("CHAMO KART") });
+    const bannerMat = new THREE.MeshBasicMaterial({ map: T.bannerTexture("KART CHAOS") });
     for (const side of [0, Math.PI]) {
       const banner = new THREE.Mesh(new THREE.PlaneGeometry(span * 2, span * 2 / 8), bannerMat);
       banner.position.set(0, 7.8, side ? 0.05 : -0.05);

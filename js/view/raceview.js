@@ -1,6 +1,6 @@
 // Renders a RaceSim: karts, items, particles, camera direction.
 import * as THREE from "three";
-import { buildWorld, animalMaker } from "./world.js?v=24";
+import { buildWorld, animalMaker } from "./world.js?v=25";
 import { buildKart, buildBanana, buildCoco, buildItemBox, buildCoin, WHEEL_POS, mat, poseTransformer, TRANSFORM_TIME, buildBlueShell, buildBomb, buildFireball, buildBoomerang, buildBulletBill, buildPiranha, buildBoo } from "./models.js?v=25";
 import { Particles } from "./particles.js?v=9";
 import { shadowTexture, labelTexture } from "./textures.js?v=9";

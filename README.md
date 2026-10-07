@@ -1,13 +1,13 @@
 <p align="center">
-  <img src=".github/logo.png" alt="Chamo Kart" width="420">
+  <img src=".github/logo.png" alt="Kart Chaos" width="420">
 </p>
 
 <p align="center">A 3D kart racer that runs right in your browser.<br>
 Race CPUs in the Copa Chamo, chase your own ghost, or race your friends online with voice chat.</p>
 
-<p align="center"><a href="https://jgrivera.com/chamokart/"><b>▶ Play now at jgrivera.com/chamokart</b></a></p>
+<p align="center"><a href="https://kartchaos.com/"><b>▶ Play now at kartchaos.com</b></a></p>
 
-<p align="center"><img src="og-image.jpg" alt="The Chamo Kart racers lined up on the starting grid" width="720"></p>
+<p align="center"><img src="og-image.jpg" alt="The Kart Chaos racers lined up on the starting grid" width="720"></p>
 
 ## Features
 

@@ -13,7 +13,7 @@ const BEATEN_EVERY_MS = 5 * 60000; // a burst of passes on the boards makes one 
 const PREF_KINDS = ["playing", "beaten", "daily"];
 const MAX_SUBS = 500;
 
-export function createPush({ dir, subject }) {
+export function createPush({ dir, subject, site = "/" }) {
   const keysFile = join(dir, "vapid.json");
   const subsFile = join(dir, "push.json");
   const metaFile = join(dir, "push-meta.json"); // { daily: the last Daily Challenge announced }
@@ -192,7 +192,7 @@ export function createPush({ dir, subject }) {
       for (const [key, e] of Object.entries(subs)) {
         if (!e.pid || e.prefs?.playing === false || e.uid === fromUid || isOnline(e.uid) || now - e.lastPlaying < PLAYING_EVERY_MS) continue;
         e.lastPlaying = now;
-        send(key, { title: `🏁 ${name} is playing Chamo Kart`, body: "Jump in and challenge them to a race!", url: "/chamokart/", tag: "playing" }, 600);
+        send(key, { title: `🏁 ${name} is playing Kart Chaos`, body: "Jump in and challenge them to a race!", url: site, tag: "playing" }, 600);
       }
       save();
     },

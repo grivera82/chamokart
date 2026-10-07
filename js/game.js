@@ -1,14 +1,14 @@
 // A single race: glues simulation, rendering, HUD, audio, input and network.
 import * as THREE from "three";
 import { RaceSim, COUNTDOWN } from "./sim/race.js?v=22";
-import { RaceView } from "./view/raceview.js?v=28";
+import { RaceView } from "./view/raceview.js?v=29";
 import { buildKart } from "./view/models.js?v=25";
 import { TRACKS, CHARACTERS, trackDef } from "./data.js?v=20";
 import { audio } from "./audio.js?v=11";
 import { input } from "./input.js?v=7";
 import { packKart, applyFlags } from "./net.js?v=7";
 import { onBoostPad } from "./sim/kart.js?v=21";
-import { ordinal } from "./hud.js?v=25";
+import { ordinal } from "./hud.js?v=26";
 import { labelTexture } from "./view/textures.js?v=9";
 import { Tutorial } from "./tutorial.js?v=5";
 import { ReplayRecorder, ReplayPlayer } from "./replay.js?v=5";
@@ -27,7 +27,7 @@ export class RaceSession {
     let introTime = 3.4;
     if (this.online) introTime = Math.max(0.3, (cfg.startAt - this.net.serverNow()) / 1000 - COUNTDOWN);
     if (cfg.mode === "attract") introTime = 0;
-    if (cfg.quickStart) introTime = 0.4; // straight back into the countdown (beta retries)
+    if (cfg.quickStart) introTime = 0.4; // straight back into the countdown (Time Trial restarts)
     this.sim = new RaceSim({
       track: cfg.track,
       laps: cfg.laps,
@@ -69,17 +69,21 @@ export class RaceSession {
     // Highlights replay after races against other racers
     this.recorder = ["gp", "vs", "online"].includes(cfg.mode) && this.me ? new ReplayRecorder(this.sim, this.me.id) : null;
     this.replay = null;
-    // Time trial ghosts: your best run and/or the board record holder's
+    // Time trial ghosts: your best run, the lap record (its record lap, every lap) and/or the
+    // track record holder's whole race
     this.ghostFrames = [];
     this.ghostAcc = 0;
     this.ghosts = [];
     if (cfg.mode === "tt") {
-      if (cfg.ghost) this.setupGhost(cfg.ghost);
-      if (cfg.recordGhost) this.setupGhost(cfg.recordGhost, cfg.recordGhost.label || `#${cfg.recordGhost.rank} ${cfg.recordGhost.name}`);
+      if (cfg.ghost) this.setupGhost(cfg.ghost, null, "mine");
+      const rg = cfg.recordGhost;
+      if (rg) this.setupGhost(rg, rg.label || (rg.lapOnly ? `⏱️ ${rg.name}'s lap` : `#${rg.rank} ${rg.name}`), "lap");
+      if (cfg.runGhost) this.setupGhost(cfg.runGhost, `🏆 ${cfg.runGhost.name}`, "run");
     }
   }
 
-  setupGhost(g, label) {
+  // kind: "mine" (no tag), "lap" (gold tag) or "run" (blue tag)
+  setupGhost(g, label, kind = "lap") {
     const model = buildKart(g.char, g.kart, g.look);
     model.traverse((o) => {
       if (o.isMesh) {
@@ -89,20 +93,23 @@ export class RaceSession {
       }
     });
     if (label) {
-      // The record holder's ghost carries a name tag, in gold
-      const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(label, "#ffd23f"), depthWrite: false, transparent: true, opacity: 0.85 }));
+      // Record holders' ghosts carry a name tag: gold for the lap record, blue for the track record
+      const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(label, kind === "run" ? "#7ad0ff" : "#ffd23f"), depthWrite: false, transparent: true, opacity: 0.85 }));
       tag.scale.set(4, 1, 1);
       tag.position.y = 2.9;
       model.add(tag);
     }
     this.view.scene.add(model);
-    this.ghosts.push({ g, model, record: !!label });
+    this.ghosts.push({ g, model, record: !!label, kind });
   }
 
   updateGhost() {
-    const t = Math.max(0, this.sim.time) * 20;
+    const now = Math.max(0, this.sim.time);
+    const lapStart = this.app.hud.lastLapStart || 0;
     this.app.hud.ghosts = [];
-    for (const { g, model, record } of this.ghosts) {
+    for (const { g, model, record, kind } of this.ghosts) {
+      // The lap record's ghost drives its record lap again every time we start a lap
+      const t = (g.lapOnly ? Math.max(0, now - lapStart) : now) * 20;
       const f = g.frames;
       const i = Math.min(f.length - 2, Math.floor(t));
       if (i < 0 || f.length < 2) continue;
@@ -113,8 +120,8 @@ export class RaceSession {
       while (dy < -Math.PI) dy += Math.PI * 2;
       model.position.set(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u);
       model.rotation.y = a[3] + dy * u;
-      model.visible = this.sim.time >= 0 && t < f.length;
-      this.app.hud.ghosts.push({ x: model.position.x, z: model.position.z, record });
+      model.visible = this.sim.time >= 0 && t < f.length && !(g.lapOnly && this.me?.finished);
+      if (model.visible) this.app.hud.ghosts.push({ x: model.position.x, z: model.position.z, record, kind });
     }
   }
 
@@ -425,10 +432,10 @@ export class RaceSession {
       });
     }
     if (sim.crossings && me) this.crossingWarning();
-    // Beta: after hitting an animal, start over
+    // Safari Run (dormant, from the old Beta screen): after hitting an animal, start over
     if (this.crashAt && !this.ended && performance.now() - this.crashAt > 2300) {
       this.ended = true;
-      this.app.betaCrash(this);
+      if (this.app.session === this && !this.app.screen) this.app.restartRace();
     }
     // End of race (single player modes)
     if (!this.online && !this.ended && this.finishShownAt && performance.now() - this.finishShownAt > 4200) {

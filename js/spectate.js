@@ -3,11 +3,11 @@
 // the items on the road and what just happened. The watcher's game (SpectateSession) builds the
 // same track and plays the stream back a moment behind, like the online remote karts.
 import { RaceSim } from "./sim/race.js?v=22";
-import { RaceView } from "./view/raceview.js?v=28";
+import { RaceView } from "./view/raceview.js?v=29";
 import { TRACKS, CHARACTERS } from "./data.js?v=20";
 import { audio } from "./audio.js?v=11";
 import { packKart } from "./net.js?v=7";
-import { ordinal } from "./hud.js?v=25";
+import { ordinal } from "./hud.js?v=26";
 import { poseKarts, VISUAL } from "./replay.js?v=5";
 
 const CAST_HZ = 10;

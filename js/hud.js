@@ -395,7 +395,7 @@ export class HUD {
     }
     for (const gh of this.ghosts) {
       const p = this.mapPt(gh.x, gh.z);
-      g.fillStyle = gh.record ? "rgba(255,210,63,0.8)" : "rgba(255,255,255,0.6)";
+      g.fillStyle = gh.kind === "run" ? "rgba(122,208,255,0.85)" : gh.record ? "rgba(255,210,63,0.8)" : "rgba(255,255,255,0.6)";
       g.beginPath();
       g.arc(p[0], p[1], 4 * dpr, 0, Math.PI * 2);
       g.fill();

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!-- Shown at the old address (jgrivera.com/chamokart/) since the game moved to kartchaos.com.
+     A browser's saved data belongs to the address it was saved at, so before sending the player
+     on, this hands it to the game server (POST migrate) and passes the one-time token along:
+     kartchaos.com/#import=TOKEN picks it up (see the first script in index.html). Room, ghost
+     challenge and player links keep their #… part. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Kart Chaos has moved to kartchaos.com</title>
+  <link rel="canonical" href="https://kartchaos.com/" />
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 38%, #ffb347, #f0563a 45%, #c81e3c); font-family: system-ui, sans-serif; color: #fff; text-align: center; }
+    h1 { font-size: 30px; margin: 0 0 8px; text-shadow: 0 3px 0 rgba(0, 0, 0, 0.25); }
+    p { margin: 0; font-weight: 700; opacity: 0.9; }
+    a { color: #fff; }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>🏁 Kart Chaos has moved!</h1>
+    <p>Taking you to <a id="go" href="https://kartchaos.com/">kartchaos.com</a> with your racer, times and ghosts…</p>
+  </div>
+  <script>
+    (function () {
+      var NEW = "https://kartchaos.com/";
+      var keep = location.hash.replace(/^#/, "");
+      function go(extra) {
+        var hash = [extra, keep].filter(Boolean).join("&");
+        location.replace(NEW + (hash ? "#" + hash : ""));
+      }
+      var data = {};
+      var n = 0;
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (/^ck_/.test(k)) {
+            data[k] = localStorage.getItem(k);
+            n++;
+          }
+        }
+      } catch (e) {}
+      if (!n) return go("");
+      // Don't keep anyone waiting if the server is slow: go anyway after a few seconds
+      var timer = setTimeout(function () { go(""); }, 6000);
+      fetch("migrate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ data: data }) })
+        .then(function (r) { return r.json(); })
+        .then(function (m) {
+          clearTimeout(timer);
+          go(m && m.token ? "import=" + m.token : "");
+        })
+        .catch(function () {
+          clearTimeout(timer);
+          go("");
+        });
+    })();
+  </script>
+</body>
+</html>

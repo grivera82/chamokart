@@ -1,10 +1,10 @@
-// Chamo Kart: app shell, menus, game flow.
+// Kart Chaos: app shell, menus, game flow.
 import * as THREE from "three";
-import { CHARACTERS, KARTS, TRACKS, CUPS, POINTS, ITEMS, botName, BETA_BASE, trackDef } from "./data.js?v=20";
+import { CHARACTERS, KARTS, TRACKS, CUPS, POINTS, ITEMS, botName, trackDef } from "./data.js?v=20";
 import { CUSTOM, DEFAULT_LOOK, LOOK_OPTIONS, STAT_KEYS, STAT_POINTS, STAT_MIN, STAT_MAX, cleanLook, lookKey, randomLook } from "./look.js?v=3";
 import { getTrack } from "./sim/race.js?v=22";
-import { RaceSession } from "./game.js?v=37";
-import { HUD, ITEM_SVG, fmtTime, ordinal } from "./hud.js?v=25";
+import { RaceSession } from "./game.js?v=40";
+import { HUD, ITEM_SVG, fmtTime, ordinal } from "./hud.js?v=26";
 import { audio } from "./audio.js?v=11";
 import { input } from "./input.js?v=7";
 import { Net } from "./net.js?v=7";
@@ -14,8 +14,8 @@ import { setAnisotropy } from "./view/textures.js?v=9";
 import { serverRequest } from "./records.js?v=12";
 import { dailyChallenge, dailyId, msToNextDaily } from "./daily.js?v=4";
 import { Presence } from "./presence.js?v=3";
-import { drawShareCard } from "./sharecard.js?v=2";
-import { Broadcaster, SpectateSession } from "./spectate.js?v=17";
+import { drawShareCard } from "./sharecard.js?v=4";
+import { Broadcaster, SpectateSession } from "./spectate.js?v=19";
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -49,16 +49,6 @@ const REACTIONS = ["👏", "🔥", "😂", "😱", "🍌", "❤️"];
 const PALETTE = [0xe23b3b, 0xff7a1a, 0xffd23f, 0x7ad04a, 0x1f9d55, 0x38e0c8, 0x6ac8ff, 0x2f5bd9, 0x8e44ad, 0xff4f9a, 0xffffff, 0xb8bcc8, 0x4a4a55, 0x15151c, 0x8a5a2b];
 const SKINS = [0xf3d3b6, 0xe2a36f, 0xc98b5c, 0x8d5a3b, 0x5a3a24, 0xf5f1e6, 0x7ad04a, 0x6ac8ff, 0xff9fb0, 0xff8a1a, 0xb8bcc8, 0x8e44ad];
 const HAIR = [0x15151c, 0x3a2412, 0x6a4020, 0xc98b3c, 0xf2d27a, 0xe8e4dc, 0xe23b3b, 0xff4f9a, 0x2f5bd9, 0x7ad04a, 0x8e44ad];
-// Beta experiments (🧪 Beta screen)
-const BETA = [
-  {
-    id: "safari",
-    icon: "🦓",
-    name: "Safari Run",
-    track: BETA_BASE + 0,
-    text: "A Time Trial across the savanna, where zebras, elephants, lions, giraffes and hippos wander across the road. Hit one and it's back to the start! Can you finish 3 clean laps?",
-  },
-];
 const MODE_NAMES = { gp: "Grand Prix", vs: "Versus", tt: "Time Trial", daily: "Daily Challenge", online: "Online race", tutorial: "Tutorial" };
 const TITLE_SONG = { bpm: 132, root: 62, mode: "major", seed: 7 };
 const LOBBY_SONG = { bpm: 112, root: 60, mode: "mixolydian", seed: 91 };
@@ -70,6 +60,11 @@ class App {
       store.get("settings", {})
     );
     this.profileSnap = JSON.stringify(this.profileNow(false)); // to spot profile changes in save()
+    // Time Trial ghosts to race: your best run, the lap record (lap by lap), the track record
+    if (!this.settings.ttGhosts) {
+      const old = this.settings.ttGhost;
+      this.settings.ttGhosts = { mine: old !== "record", lap: old !== "mine", run: false };
+    }
     this.hud = new HUD($("#hud"));
     this.history = [];
     this.screen = null;
@@ -183,7 +178,7 @@ class App {
         () => this.toast("🔗 Link copied! Open it on your other phone or computer."),
         () => this.toast(link, false, 8000)
       ) ?? this.toast(link, false, 8000);
-    else if (what === "wa") this.openWhatsApp(`🔑 My Chamo Kart player (open this on my other phone or computer, don't share it): ${link}`);
+    else if (what === "wa") this.openWhatsApp(`🔑 My Kart Chaos player (open this on my other phone or computer, don't share it): ${link}`);
     else if (what === "reset") {
       if (!confirm("Make a new player code? Your old code and link stop working. Devices you already linked stay linked.")) return;
       serverRequest({ t: "acct-reset", pid: this.pid })
@@ -587,10 +582,30 @@ class App {
     this.seg($("#cc-choices"), [50, 100, 150, 200].map((v) => [v, v + "cc"]), () => this.settings.cc, (v) => (this.settings.cc = v));
     this.seg($("#laps-choices"), [1, 2, 3, 4, 5].map((v) => [v, String(v)]), () => this.settings.laps, (v) => (this.settings.laps = v));
     this.seg($("#items-choices"), [[true, "On"], [false, "Off"]], () => this.settings.items, (v) => (this.settings.items = v));
-    this.seg($("#ghost-choices"), [["mine", "Yours"], ["record", "#1"], ["both", "Both"]], () => this.settings.ttGhost, (v) => {
-      this.settings.ttGhost = v;
-      this.save();
-    });
+    // Ghost toggles: any mix of the three
+    {
+      const gc = $("#ghost-choices");
+      gc.innerHTML = "";
+      for (const [k, label] of [["mine", "👤 Yours"], ["lap", "⏱️ Lap record"], ["run", "🏆 Track record"]]) {
+        const b = document.createElement("button");
+        b.textContent = label;
+        b.dataset.g = k;
+        b.addEventListener("click", () => {
+          this.settings.ttGhosts[k] = !this.settings.ttGhosts[k];
+          audio.play("menu");
+          this.save();
+          gc.refresh();
+        });
+        gc.append(b);
+      }
+      gc.refresh = () => {
+        for (const b of gc.children) {
+          b.classList.toggle("on", !!this.settings.ttGhosts[b.dataset.g]);
+          b.setAttribute("aria-pressed", String(!!this.settings.ttGhosts[b.dataset.g]));
+        }
+      };
+      gc.refresh();
+    }
     this.seg($("#set-steer"), [["pad", "Touch pad"], ["tilt", "Tilt phone"]], () => this.settings.steer, (v) => this.setSteer(v));
     this.seg($("#set-quality"), [["low", "Low"], ["medium", "Medium"], ["high", "High"]], () => this.settings.quality, (v) => {
       this.settings.quality = v;
@@ -1097,7 +1112,8 @@ class App {
       case "race-record-ghost":
         audio.play("select");
         this.flow = "tt";
-        this.startTimeTrial(this.recTrack, "both");
+        // The ghost of whichever board is showing
+        this.startTimeTrial(this.recTrack, { mine: false, lap: this.recBoard !== "runs", run: this.recBoard === "runs" });
         break;
       case "back":
         this.back();
@@ -1137,22 +1153,6 @@ class App {
         break;
       case "tutorial":
         this.startTutorial();
-        break;
-      case "beta":
-        audio.play("select");
-        this.openBeta();
-        break;
-      case "quick-restart":
-        this.quickRestart();
-        break;
-      case "beta-play":
-        audio.play("select");
-        this.startBeta(el.dataset.id);
-        break;
-      case "beta-menu":
-        this.quitRace();
-        this.history = ["menu"];
-        this.openBeta();
         break;
       case "tut-skip":
         this.session?.tutorial?.skip();
@@ -1368,7 +1368,7 @@ class App {
         const code = this.room?.code;
         if (!code) break;
         const url = `${location.origin}${location.pathname}#room=${code}`;
-        this.openWhatsApp(`🏁 Let's race! Join my Chamo Kart room ${code}: ${url}`);
+        this.openWhatsApp(`🏁 Let's race! Join my Kart Chaos room ${code}: ${url}`);
         break;
       }
       case "share":
@@ -1390,7 +1390,7 @@ class App {
       case "copy-link": {
         const url = `${location.origin}${location.pathname}#room=${this.room?.code}`;
         if (isTouch && navigator.share) {
-          navigator.share({ title: "Chamo Kart", text: `Race me in Chamo Kart! Room ${this.room?.code}`, url }).catch(() => {});
+          navigator.share({ title: "Kart Chaos", text: `Race me in Kart Chaos! Room ${this.room?.code}`, url }).catch(() => {});
           break;
         }
         navigator.clipboard?.writeText(url).then(
@@ -1462,18 +1462,17 @@ class App {
     });
   }
 
-  // Time Trial against your own best run ("mine"), the board's record ghost ("record"), or both.
-  async startTimeTrial(track, mode = this.settings.ttGhost) {
+  // Time Trial against any mix of ghosts: your own best run (mine), the lap record holder's
+  // record lap, replayed every lap (lap), and the track record holder's whole race (run).
+  async startTimeTrial(track, pick = this.settings.ttGhosts) {
     if (this.startingTT) return; // a double-click mustn't start two races
     this.startingTT = true;
-    let recordGhost = null;
-    if (mode !== "mine") {
-      recordGhost = await this.fetchRecordGhost(track);
-      if (!recordGhost) this.toast("No record ghost on this track yet. Set the fastest lap and it's yours!", false, 3000);
-    }
+    const [lapGhost, runGhost] = await Promise.all([pick.lap ? this.fetchRecordGhost(track, "laps") : null, pick.run ? this.fetchRecordGhost(track, "runs") : null]);
+    if (pick.lap && !lapGhost) this.toast("No lap record ghost on this track yet. Set the fastest lap and it's yours!", false, 3000);
+    else if (pick.run && !runGhost) this.toast("No track record ghost here yet. Finish the fastest 3 laps and it's yours!", false, 3000);
     this.startingTT = false;
     const s = this.settings;
-    const ownGhost = mode !== "record" || !recordGhost;
+    const recordGhost = lapGhost, ownGhost = pick.mine || (!lapGhost && !runGhost); // never race alone by accident
     this.showTTRecords(track);
     this.startRace({
       mode: "tt",
@@ -1485,6 +1484,7 @@ class App {
       ghost: ownGhost ? store.get("ghost_" + track, null) : null,
       ownGhost,
       recordGhost,
+      runGhost,
     });
   }
 
@@ -1517,15 +1517,17 @@ class App {
       .catch(() => {});
   }
 
-  // The best-ranked ghost on a track's fastest-lap board, cached for a minute.
-  fetchRecordGhost(track) {
-    const hit = this.recordGhosts[track];
+  // The best-ranked ghost on a track's board ("laps": just the record lap; "runs": the whole
+  // record race), cached for a minute.
+  fetchRecordGhost(track, board = "laps") {
+    const key = board + track;
+    const hit = this.recordGhosts[key];
     if (hit && Date.now() - hit.at < 60000) return Promise.resolve(hit.g);
     this.toast("👻 Fetching the record ghost…", false, 1500);
-    return serverRequest({ t: "ghost", track }, 8000)
+    return serverRequest({ t: "ghost", track, board }, 8000)
       .then((m) => {
         const g = !m.none && Array.isArray(m.frames) && m.frames.length > 1 ? m : null;
-        this.recordGhosts[track] = { g, at: Date.now() };
+        this.recordGhosts[key] = { g, at: Date.now() };
         return g;
       })
       .catch(() => null);
@@ -1565,7 +1567,7 @@ class App {
     }
     $("#hud-social").classList.toggle("on", cfg.mode === "online");
     $("#hud-feed").innerHTML = "";
-    if (cfg.mode !== "tt" || cfg.daily || cfg.beta) {
+    if (cfg.mode !== "tt" || cfg.daily) {
       this.ttTrack = null;
       $("#hud-records").innerHTML = "";
     }
@@ -1581,7 +1583,6 @@ class App {
   restartRace() {
     if (!this.lastRaceCfg || this.lastRaceCfg.mode === "online") return;
     const cfg = { ...this.lastRaceCfg, seed: undefined };
-    if (cfg.beta) return this.startBeta(cfg.beta, this.screen === "results" ? 1 : (cfg.attempt || 1) + 1); // a restart mid-run counts as another attempt
     if (cfg.daily) {
       // Past midnight the old challenge is closed: show the new one instead.
       if (cfg.daily !== dailyId()) {
@@ -1652,7 +1653,6 @@ class App {
 
   onRaceEnd(session) {
     const cfg = session.cfg;
-    if (cfg.beta) return this.betaResults(session); // beta runs stay off the boards and stats
     const rows = session.results();
     const table = $("#results-table");
     table.innerHTML = "";
@@ -1714,9 +1714,12 @@ class App {
       } else {
         $("#results-title").textContent = isBest ? "New record!" : "Time Trial";
         this.shareInfo = { title: isBest ? "NEW RECORD!" : "TIME TRIAL", big: fmtTime(me.finishTime), sub: `${def.name} · best lap ${fmtTime(Math.min(...laps))}`, char: me.char, track: cfg.track };
-        const rg = cfg.recordGhost;
-        $("#results-sub").textContent = `${def.name} · ${fmtTime(me.finishTime)}${prev ? ` · best ${fmtTime(Math.min(prev, me.finishTime))}` : ""}${rg ? ` · #${rg.rank} ghost ${fmtTime(rg.time)}` : ""}`;
-        if (rg && me.finishTime < rg.time) this.toast(`👻 You beat ${rg.name}'s ghost!`, false, 4000);
+        const rg = cfg.recordGhost, tg = cfg.runGhost;
+        const ghostNote = (rg ? ` · lap record ${fmtTime(rg.lapOnly ? rg.time : rg.lap ?? rg.time)}` : "") + (tg ? ` · track record ${fmtTime(tg.time)}` : "");
+        $("#results-sub").textContent = `${def.name} · ${fmtTime(me.finishTime)}${prev ? ` · best ${fmtTime(Math.min(prev, me.finishTime))}` : ""}${ghostNote}`;
+        if (tg && me.finishTime < tg.time) this.toast(`🏆 You beat ${tg.name}'s track record ghost!`, false, 4000);
+        else if (rg?.lapOnly && Math.min(...laps) < rg.time) this.toast(`⏱️ You beat ${rg.name}'s lap record ghost!`, false, 4000);
+        else if (rg && !rg.lapOnly && me.finishTime < rg.time) this.toast(`👻 You beat ${rg.name}'s ghost!`, false, 4000);
       }
       laps.forEach((t, i) => this.resultRow(table, { pos: "L" + (i + 1), char: me.char, look: me.look, name: `Lap ${i + 1}`, pts: fmtTime(t), me: true }, i));
       if (ch) {
@@ -1865,7 +1868,7 @@ class App {
     if (!boards) return;
     const list = boards[this.recTrack] || [];
     $("#records-status").textContent = list.length ? "" : `No ${runs ? "races" : "laps"} yet on this track. Be the first!`;
-    const top = runs ? -1 : list.findIndex((e) => e.ghost); // ghosts belong to the lap board
+    const top = list.findIndex((e) => e.ghost);
     $("#records-ghost").style.display = top >= 0 ? "" : "none";
     $("#records-ghost").textContent = `👻 Race #${top + 1}'s ghost`;
     list.forEach((e, i) => {
@@ -1879,8 +1882,15 @@ class App {
   submitLaps(cfg, me, laps, button, ghost) {
     const s = this.settings;
     const mine = this.records?.[cfg.track]?.find((e) => e.mine);
-    const sendGhost = !mine || Math.min(...laps) < mine.time;
-    if (sendGhost) delete this.recordGhosts[cfg.track]; // we may be the new record holder
+    const myRun = this.runs?.[cfg.track]?.find((e) => e.mine);
+    const run = laps.length === 3 ? laps.reduce((a, b) => a + b, 0) : Infinity;
+    // Either board could take this run as its ghost
+    const sendGhost = !mine || Math.min(...laps) < mine.time || (run < Infinity && (!myRun || run < myRun.time));
+    if (sendGhost) {
+      // We may be the new record holder
+      delete this.recordGhosts["laps" + cfg.track];
+      delete this.recordGhosts["runs" + cfg.track];
+    }
     serverRequest({ t: "laps", pid: this.pid, track: cfg.track, laps, name: s.name || CHARACTERS[me.char].name, char: me.char, kart: me.kartType, look: me.look || undefined, ghost: sendGhost ? ghost : undefined })
       .then((m) => {
         this.gotRecords(m);
@@ -2090,7 +2100,7 @@ class App {
     const blob = await drawShareCard({ ...info, shot, map, accent, portrait: this.portraitFor(info.char ?? s.char, this.lookFor(info.char ?? s.char)), name: s.name || CHARACTERS[info.char ?? s.char].name });
     if (!blob) return this.toast("Couldn't make the picture on this device.", true);
     if (this.screen !== from) return; // they moved on while it was drawing
-    this.shareFile = new File([blob], "chamo-kart.png", { type: "image/png" });
+    this.shareFile = new File([blob], "kart-chaos.png", { type: "image/png" });
     if (this.shareUrl) URL.revokeObjectURL(this.shareUrl);
     this.shareUrl = URL.createObjectURL(blob);
     $("#share-img").src = this.shareUrl;
@@ -2109,7 +2119,7 @@ class App {
     audio.play("select");
     const a = document.createElement("a");
     a.href = this.shareUrl;
-    a.download = "chamo-kart.png";
+    a.download = "kart-chaos.png";
     a.click();
     this.toast("⬇️ Picture saved!");
   }
@@ -2137,7 +2147,7 @@ class App {
       this.checkGhostHash();
       this.checkDailyHash();
     });
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=1").catch(() => {});
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=3").catch(() => {});
   }
 
   presenceHello() {
@@ -2146,7 +2156,7 @@ class App {
     let status = { where: "menu" };
     if (this.watch) status = { where: "watch" };
     else if (this.room) status = { where: this.session?.online ? "online" : "lobby" };
-    else if (cfg) status = { where: "race", mode: cfg.beta ? "beta" : cfg.daily ? "daily" : cfg.mode, track: cfg.beta ? 0 : cfg.track };
+    else if (cfg) status = { where: "race", mode: cfg.daily ? "daily" : cfg.mode, track: cfg.track };
     return { pid: this.pid, name: s.name || CHARACTERS[s.char].name, char: s.char, look: this.lookFor(s.char), status };
   }
 
@@ -2221,7 +2231,6 @@ class App {
     if (st.where === "online") return "Racing online";
     if (st.where === "watch") return st.of ? `Watching ${st.of} race` : "Watching a race";
     if (st.where === "race") {
-      if (st.mode === "beta") return "Trying out the 🧪 Beta";
       const mode = { gp: "Grand Prix", vs: "Racing", tt: "Time Trial", daily: "Daily Challenge", tutorial: "Learning to race" }[st.mode] || "Racing";
       return `${mode} · ${TRACKS[st.track]?.name ?? ""}`;
     }
@@ -2233,7 +2242,7 @@ class App {
     list.innerHTML = "";
     const connected = !!this.presence?.uid;
     $("#players-status").textContent = !connected
-      ? "Connecting to the Chamo Kart server…"
+      ? "Connecting to the Kart Chaos server…"
       : this.players.length
         ? "Watch someone's race live, or challenge them in a private room."
         : "Nobody else is playing right now. Turn on notifications to hear when someone starts.";
@@ -2277,7 +2286,7 @@ class App {
     btn.style.display = supported ? "" : "none";
     if (!supported)
       $("#notify-text").textContent = ios
-        ? "On iPhone and iPad, tap Share → Add to Home Screen, then open Chamo Kart from your home screen to turn on notifications."
+        ? "On iPhone and iPad, tap Share → Add to Home Screen, then open Kart Chaos from your home screen to turn on notifications."
         : "This browser can't show notifications.";
     else if (Notification.permission === "denied") {
       $("#notify-text").textContent = "Notifications are blocked for this site. Allow them in your browser settings to turn them on.";
@@ -2325,7 +2334,7 @@ class App {
   // Ask the browser, subscribe this device and tell the server (with its choices).
   async enableNotify() {
     try {
-      const reg = await navigator.serviceWorker.register("sw.js?v=1");
+      const reg = await navigator.serviceWorker.register("sw.js?v=3");
       await navigator.serviceWorker.ready;
       if ((await Notification.requestPermission()) !== "granted") {
         this.toast("Notifications are blocked. Allow them for this site in your browser settings.", true);
@@ -2369,7 +2378,7 @@ class App {
     const btn = $("#notify-btn");
     btn.disabled = true;
     try {
-      const reg = await navigator.serviceWorker.register("sw.js?v=1");
+      const reg = await navigator.serviceWorker.register("sw.js?v=3");
       await navigator.serviceWorker.ready;
       let sub = await reg.pushManager.getSubscription();
       if (this.pushOn) {
@@ -2508,7 +2517,7 @@ class App {
         if (!m.ok) return this.toast(m.error === "slow" ? "That's a lot of challenges for one day! Try again tomorrow." : "This run can't be sent as a challenge, sorry.", true, 4000);
         const where = TRACKS[run.track].name;
         const link = `${location.origin}${location.pathname}#ghost=${m.code}`;
-        this.gchalText = `👻 Beat my ghost! I did ${where} in ${fmtTime(run.time)} on Chamo Kart. Think you're faster? ${link}`;
+        this.gchalText = `👻 Beat my ghost! I did ${where} in ${fmtTime(run.time)} on Kart Chaos. Think you're faster? ${link}`;
         $("#gchal-share-text").textContent = `Your ${fmtTime(run.time)} on ${where} is ready. Whoever opens this link races your ghost, and you'll see how they did next time you play.`;
         $("#gchal-link").value = link;
         $("#gchal-go").style.display = navigator.share ? "" : "none";
@@ -2629,92 +2638,6 @@ class App {
     this.pendingJoin = code;
     this.history = ["menu"];
     this.openOnline();
-  }
-
-  // ------------------------------------------------------------------ beta
-  openBeta() {
-    const list = $("#beta-list");
-    list.innerHTML = "";
-    const best = store.get("betaBest", {});
-    for (const b of BETA) {
-      const card = document.createElement("div");
-      card.className = "beta-card";
-      const h = document.createElement("h3");
-      h.innerHTML = `${b.icon} <span></span> <small>BETA</small>`;
-      h.querySelector("span").textContent = b.name;
-      const p = document.createElement("p");
-      p.textContent = b.text;
-      const bt = document.createElement("span");
-      bt.className = "beta-best";
-      const mine = best[b.id];
-      bt.textContent = mine ? `Your best: ${fmtTime(mine.time)} (clean run on attempt ${mine.attempt})` : "No clean run yet. Can you make it?";
-      const go = document.createElement("button");
-      go.className = "btn primary";
-      go.dataset.action = "beta-play";
-      go.dataset.id = b.id;
-      go.textContent = "▶ Play";
-      card.append(h, p, bt, go);
-      list.append(card);
-    }
-    this.show("beta");
-  }
-
-  startBeta(id, attempt = 1) {
-    const b = BETA.find((x) => x.id === id);
-    if (!b) return;
-    const s = this.settings;
-    if (attempt > 1) this.toast(`${b.icon} Attempt ${attempt}. Watch out for the animals!`, false, 2500);
-    this.startRace({
-      mode: "tt",
-      beta: id,
-      attempt,
-      quickStart: attempt > 1,
-      track: b.track,
-      laps: 3,
-      cc: 150,
-      items: false,
-      grid: [{ id: "you", name: s.name || CHARACTERS[s.char].name, char: s.char, kart: s.kart, look: this.lookFor(s.char), human: true, local: true }],
-      ghost: store.get("ghost_beta_" + id, null),
-    });
-  }
-
-  // Ran into an animal: straight back to the start
-  betaCrash(session) {
-    if (this.session !== session || this.screen) return;
-    this.startBeta(session.cfg.beta, (session.cfg.attempt || 1) + 1);
-  }
-
-  betaResults(session) {
-    const cfg = session.cfg;
-    const me = session.me;
-    const b = BETA.find((x) => x.id === cfg.beta);
-    const laps = [...this.hud.lapTimes];
-    const bests = store.get("betaBest", {});
-    const prev = bests[cfg.beta];
-    const isBest = !prev || me.finishTime < prev.time;
-    if (isBest) {
-      bests[cfg.beta] = { time: me.finishTime, attempt: cfg.attempt || 1 };
-      store.set("betaBest", bests);
-      store.set("ghost_beta_" + cfg.beta, { time: me.finishTime, char: me.char, kart: me.kartType, look: me.look, frames: session.ghostFrames });
-    }
-    $("#results-title").textContent = isBest ? `${b.icon} New best!` : `${b.icon} You made it!`;
-    const tries = cfg.attempt > 1 ? `clean run on attempt ${cfg.attempt}` : "clean run on the first try!";
-    $("#results-sub").textContent = `${b.name} · ${fmtTime(me.finishTime)} · ${tries}${prev && !isBest ? ` · best ${fmtTime(prev.time)}` : ""}`;
-    const table = $("#results-table");
-    table.innerHTML = "";
-    laps.forEach((t, i) => this.resultRow(table, { pos: "L" + (i + 1), char: me.char, look: me.look, name: `Lap ${i + 1}`, time: fmtTime(t), me: true }, i));
-    const actions = $("#results-actions");
-    actions.innerHTML = "";
-    for (const [label, action, primary] of [["🧪 Beta", "beta-menu"], ["💬 Feedback", "feedback"], ["Try again", "retry", true]]) {
-      const btn = document.createElement("button");
-      btn.className = "btn" + (primary ? " primary" : "");
-      btn.textContent = label;
-      btn.dataset.action = action;
-      actions.append(btn);
-    }
-    this.shareInfo = null;
-    audio.playSong({ bpm: 100, root: 65, mode: "major", seed: 5 });
-    this.show("results", false);
   }
 
   // ------------------------------------------------------------------ the tutorial
@@ -3171,7 +3094,7 @@ class App {
       this.bindNet();
     }
     const status = $("#online-status");
-    status.textContent = "Connecting to the Chamo Kart server…";
+    status.textContent = "Connecting to the Kart Chaos server…";
     try {
       await this.net.connect();
       status.textContent = "Connected! Pick a room or hit Quick Play.";

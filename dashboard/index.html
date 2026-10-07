@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="robots" content="noindex, nofollow" />
   <meta name="theme-color" content="#e23b3b" />
-  <title>Chamo Kart Stats</title>
+  <title>Kart Chaos Stats</title>
   <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -169,7 +169,7 @@
 <body>
   <div class="st-wrap">
     <header class="st-head">
-      <a class="logo small" href="../" title="Play Chamo Kart"><span class="l1">CHAMO</span><span class="l2">KART</span></a>
+      <a class="logo small" href="../" title="Play Kart Chaos"><span class="l1">KART</span><span class="l2">CHAOS</span></a>
       <div class="st-title">
         <h1>Stats</h1>
         <p id="updated">Loading…</p>
@@ -890,7 +890,7 @@
       }
       if (s === "ready")
         button("✅ Approve & deploy", "primary", (b) =>
-          fixAction({ action: "approve", id: job.id }, b, `Put this ${job.kind === "feature" ? "feature" : "fix"} live on jgrivera.com/chamokart?${job.restartNeeded ? `\n\nThe multiplayer server restarts, so ${data.online.clients} connected player(s) get disconnected for a moment.` : ""}`)
+          fixAction({ action: "approve", id: job.id }, b, `Put this ${job.kind === "feature" ? "feature" : "fix"} live on kartchaos.com?${job.restartNeeded ? `\n\nThe multiplayer server restarts, so ${data.online.clients} connected player(s) get disconnected for a moment.` : ""}`)
         );
       if (s === "deployed") button("↩ Roll back", "ghost", (b) => fixAction({ action: "rollback", id: job.id }, b, `Undo this ${job.kind === "feature" ? "feature" : "fix"} on the live site?`));
       box.append(btns);
@@ -1028,7 +1028,7 @@
       const root = $("#idea-list");
       root.innerHTML = "";
       const shown = list.filter((i) => ideaFilter === "all" || (ideaFilter === "live" ? i.state === "live" : !i.hidden && i.state !== "live" && i.state !== "declined"));
-      if (!shown.length) root.append(el("p", "muted", list.length ? "Nothing here." : "No ideas yet. Players post them on jgrivera.com/chamokart/features."));
+      if (!shown.length) root.append(el("p", "muted", list.length ? "Nothing here." : "No ideas yet. Players post them on kartchaos.com/features."));
       for (const i of shown) {
         const job = jobFor.get(i.id);
         const item = el("div", "bug-item" + (i.hidden ? " muted-item" : ""));

@@ -2,39 +2,60 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <script>
+    // Arriving from the old address (moved.html) with #import=TOKEN: bring this browser's saved
+    // data along before the game reads it. A browser that already plays here keeps its own
+    // player and only fills in what it doesn't have.
+    (function () {
+      var m = location.hash.match(/import=([A-Za-z0-9_-]{16,64})/);
+      if (!m) return;
+      try {
+        var x = new XMLHttpRequest();
+        x.open("GET", "migrate?token=" + m[1], false);
+        x.send();
+        if (x.status === 200) {
+          var d = JSON.parse(x.responseText).data || {};
+          var fresh = !localStorage.getItem("ck_pid");
+          for (var k in d) if (/^ck_/.test(k) && (fresh || localStorage.getItem(k) === null)) localStorage.setItem(k, d[k]);
+        }
+      } catch (e) {}
+      var rest = location.hash.replace(/^#/, "").split("&").filter(function (p) { return !/^import=/.test(p); }).join("&");
+      history.replaceState(null, "", location.pathname + location.search + (rest ? "#" + rest : ""));
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#e23b3b" />
   <!-- "Add to Home Screen" on iPhone launches full screen, without Safari's bars. -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Chamo Kart" />
+  <meta name="apple-mobile-web-app-title" content="Kart Chaos" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="manifest" href="manifest.json" />
   <meta name="robots" content="noindex, nofollow" />
-  <meta name="description" content="Chamo Kart: a kart racing game in your browser. Race CPUs in the Chamo Cup or race your friends online." />
-  <title>Chamo Kart</title>
+  <meta name="description" content="Kart Chaos: a kart racing game in your browser. Race CPUs in the Chamo Cup or race your friends online." />
+  <title>Kart Chaos</title>
   <!-- Link previews (iMessage, WhatsApp, Telegram, Slack…). URLs must be absolute. -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Chamo Kart" />
-  <meta property="og:title" content="Chamo Kart: race your friends online!" />
+  <meta property="og:site_name" content="Kart Chaos" />
+  <meta property="og:title" content="Kart Chaos: race your friends online!" />
   <meta property="og:description" content="Join the race! A free kart racing game that runs right in your browser. No download, works on your phone." />
-  <meta property="og:url" content="https://jgrivera.com/chamokart/" />
-  <meta property="og:image" content="https://jgrivera.com/chamokart/og-image.jpg" />
-  <meta property="og:image:secure_url" content="https://jgrivera.com/chamokart/og-image.jpg" />
+  <meta property="og:url" content="https://kartchaos.com/" />
+  <meta property="og:image" content="https://kartchaos.com/og-image.jpg?v=2" />
+  <meta property="og:image:secure_url" content="https://kartchaos.com/og-image.jpg?v=2" />
   <meta property="og:image:type" content="image/jpeg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Chamo Kart logo with eight racers lined up on the starting grid" />
+  <meta property="og:image:alt" content="Kart Chaos logo with eight racers lined up on the starting grid" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Chamo Kart: race your friends online!" />
+  <meta name="twitter:title" content="Kart Chaos: race your friends online!" />
   <meta name="twitter:description" content="Join the race! A free kart racing game that runs right in your browser." />
-  <meta name="twitter:image" content="https://jgrivera.com/chamokart/og-image.jpg" />
+  <meta name="twitter:image" content="https://kartchaos.com/og-image.jpg?v=2" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=39" />
+  <link rel="stylesheet" href="css/style.css?v=40" />
   <script src="js/crash.js?v=1"></script>
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
@@ -45,7 +66,7 @@
 
   <!-- Loading -->
   <section id="loading" class="screen active">
-    <div class="logo small"><span class="l1">CHAMO</span><span class="l2">KART</span></div>
+    <div class="logo small"><span class="l1">KART</span><span class="l2">CHAOS</span></div>
     <div class="loadbar"><div id="loadbar-fill"></div></div>
     <p id="load-msg">Warming up the engines…</p>
   </section>
@@ -53,7 +74,7 @@
   <!-- Title -->
   <section id="title" class="screen">
     <div class="title-wrap">
-      <div class="logo"><span class="l1">CHAMO</span><span class="l2">KART</span></div>
+      <div class="logo"><span class="l1">KART</span><span class="l2">CHAOS</span></div>
       <p class="tagline">Start your engines!</p>
       <button class="btn big pulse" data-action="start">Press Start</button>
     </div>
@@ -62,10 +83,9 @@
 
   <!-- Main menu -->
   <section id="menu" class="screen">
-    <button id="beta-chip" class="players-chip beta-chip" data-action="beta">🧪 Beta</button>
     <button id="players-chip" class="players-chip" data-action="players">👥 <span id="players-count">Players</span></button>
     <div class="panel menu-panel">
-      <div class="logo small"><span class="l1">CHAMO</span><span class="l2">KART</span></div>
+      <div class="logo small"><span class="l1">KART</span><span class="l2">CHAOS</span></div>
       <div class="menu-list">
         <button class="btn mode gp" data-action="mode" data-mode="gp"><b>Grand Prix</b><small>Race the Chamo Cup: 5 tracks, win the trophy</small></button>
         <button class="btn mode vs" data-action="mode" data-mode="vs"><b>Versus Race</b><small>One race, any track, your rules</small></button>
@@ -142,7 +162,7 @@
           <div id="items-choices" class="seg"></div>
         </div>
         <div id="ghost-row" class="cc-row">
-          <span class="muted">Ghost</span>
+          <span class="muted">Ghosts</span>
           <div id="ghost-choices" class="seg"></div>
         </div>
       </div>
@@ -406,19 +426,6 @@
     </div>
   </section>
 
-  <!-- Beta: experiments to try before they're finished -->
-  <section id="beta" class="screen">
-    <div class="panel records-panel beta-panel">
-      <h2 class="screen-title">🧪 Beta</h2>
-      <p class="muted">Try new things before they're finished. They might change, break or disappear, and your times here only count on this device. Tell us what you think!</p>
-      <div id="beta-list" class="beta-list"></div>
-      <div class="row end">
-        <button class="btn ghost" data-action="feedback">💬 Send feedback</button>
-        <button class="btn primary" data-action="back">Back</button>
-      </div>
-    </div>
-  </section>
-
   <!-- A challenge from another player -->
   <section id="challenge" class="screen overlay">
     <div class="panel small-panel challenge-panel">
@@ -655,6 +662,6 @@
 
   <div id="toasts" class="toasts"></div>
 
-  <script type="module" src="js/main.js?v=58"></script>
+  <script type="module" src="js/main.js?v=62"></script>
 </body>
 </html>

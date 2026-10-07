@@ -1,8 +1,8 @@
 {
-  "name": "Chamo Kart",
-  "short_name": "Chamo Kart",
-  "start_url": "/chamokart/",
-  "scope": "/chamokart/",
+  "name": "Kart Chaos",
+  "short_name": "Kart Chaos",
+  "start_url": "./",
+  "scope": "./",
   "display": "fullscreen",
   "background_color": "#e23b3b",
   "theme_color": "#e23b3b",

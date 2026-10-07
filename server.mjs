@@ -1,4 +1,4 @@
-// Chamo Kart multiplayer server.
+// Kart Chaos multiplayer server.
 // Rooms + lobbies + race orchestration. Karts are simulated by their owning
 // client; this server relays state/events, keeps the race clock and decides
 // the official results.
@@ -6,7 +6,7 @@ import { createServer } from "node:http";
 import { readFileSync, writeFileSync, renameSync, mkdirSync, readdirSync, unlinkSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { WebSocketServer } from "ws";
-import { createHash, randomInt } from "node:crypto";
+import { createHash, randomInt, randomBytes } from "node:crypto";
 import { createStats, geoFromRequest } from "./stats.mjs";
 import { createPush } from "./push.mjs";
 import { createBugs } from "./bugs.mjs";
@@ -14,8 +14,12 @@ import { createFeatures } from "./features.mjs";
 import { dailyChallenge, dailyId, isDailyId, DAILY_LAPS } from "./js/daily.js";
 import { CUSTOM, cleanLook } from "./js/look.js";
 import { TRACKS, CHARACTERS, KARTS } from "./js/data.js";
+import { Track } from "./js/sim/track.js";
 
 const HOST = process.env.HOST || "127.0.0.1";
+// Where the game lives (links in notifications). It moved from jgrivera.com/chamokart/ on 2026-10-06.
+const SITE = (process.env.SITE_URL || "https://kartchaos.com/").replace(/\/?$/, "/");
+const siteUrl = (path) => SITE + String(path || "").replace(/^\/(chamokart\/)?/, "");
 const PORT = Number(process.env.PORT || 8792);
 
 const TRACK_COUNT = 8;
@@ -389,10 +393,10 @@ function saveRecords() {
 }
 
 // Player ids stay private: a client only learns which entries are its own.
-// Ghosts belong to the lap board.
+// Entries on both boards can have a ghost (the run that set the time).
 function boardView(board, pid) {
   return records[board].map((list, track) =>
-    list.map((e) => ({ name: e.name, char: e.char, kart: e.kart, look: e.look, time: e.time, laps: e.laps, at: e.at, mine: e.pid === pid || undefined, ghost: (board === "laps" && ghosts.has(ghostKey(track, e.pid))) || undefined }))
+    list.map((e) => ({ name: e.name, char: e.char, kart: e.kart, look: e.look, time: e.time, laps: e.laps, at: e.at, mine: e.pid === pid || undefined, ghost: ghosts.has(ghostKey(track, e.pid, board)) || undefined }))
   );
 }
 const recordsView = (pid, extra) => ({ t: "records", laps: boardView("laps", pid), runs: boardView("runs", pid), ...extra });
@@ -415,7 +419,9 @@ function recordTime(list, pid, time, fields, onDrop, onPass) {
 
 // ---------------------------------------------------------------- ghosts
 
-const ghostKey = (track, pid) => `${track}-${pid}`; // pids are checked by validPid, so this is a safe file name
+// One file per board entry: "7-<pid>" for the lap board, "r7-<pid>" for the full-race board.
+// pids are checked by validPid, so these are safe file names.
+const ghostKey = (track, pid, board = "laps") => `${board === "runs" ? "r" : ""}${track}-${pid}`;
 const ghosts = loadGhostIndex();
 
 function loadGhostIndex() {
@@ -437,11 +443,12 @@ function validGhost(g, laps) {
   return g.frames.every((f) => Array.isArray(f) && f.length === 4 && f.every((v) => typeof v === "number" && Number.isFinite(v) && Math.abs(v) < 1e4));
 }
 
-function saveGhost(track, entry, g) {
-  const key = ghostKey(track, entry.pid);
+// The whole run, with its lap times (so the lap board can hand out just the record lap).
+function saveGhost(track, entry, g, laps, board = "laps") {
+  const key = ghostKey(track, entry.pid, board);
   try {
     const file = join(GHOST_DIR, key + ".json");
-    writeFileSync(file + ".tmp", JSON.stringify({ char: entry.char, kart: entry.kart, look: entry.look, time: Math.round(Number(g.time) * 1000) / 1000, frames: g.frames }));
+    writeFileSync(file + ".tmp", JSON.stringify({ char: entry.char, kart: entry.kart, look: entry.look, time: Math.round(Number(g.time) * 1000) / 1000, laps: laps.map((l) => Math.round(Number(l) * 1000) / 1000), frames: g.frames }));
     renameSync(file + ".tmp", file);
     ghosts.add(key);
   } catch (err) {
@@ -449,27 +456,104 @@ function saveGhost(track, entry, g) {
   }
 }
 
-function dropGhost(track, pid) {
-  const key = ghostKey(track, pid);
+function dropGhost(track, pid, board = "laps") {
+  const key = ghostKey(track, pid, board);
   if (!ghosts.delete(key)) return;
   try {
     unlinkSync(join(GHOST_DIR, key + ".json"));
   } catch {}
 }
 
-// The best-ranked ghost on a track's board (normally #1's).
-function ghostView(track) {
-  const list = records.laps[track] || [];
-  const i = list.findIndex((e) => ghosts.has(ghostKey(track, e.pid)));
-  if (i < 0) return { t: "ghost", track, none: true };
+// Lap times of a recorded run, from where it crosses the line: its progress round the track
+// (in samples, starting just behind the line) passes a multiple of the lap length.
+const trackShapes = new Map();
+function lapsFromFrames(track, frames) {
+  if (!trackShapes.has(track)) trackShapes.set(track, new Track(TRACKS[track]));
+  const t = trackShapes.get(track);
+  const q = {};
+  let hint = -1, prev = null, dist = 0;
+  const ends = [];
+  frames.forEach(([x, , z], i) => {
+    t.query(x, z, hint, q);
+    hint = q.idx;
+    if (prev == null) dist = t.delta(0, q.idx); // just behind the line at the start
+    else dist += t.delta(prev, q.idx);
+    prev = q.idx;
+    if (dist >= (ends.length + 1) * t.N) ends.push(i);
+  });
+  if (ends.length < 2) return null;
+  ends[ends.length - 1] = Math.max(ends[ends.length - 1], frames.length - 1); // the last lap ends with the run
+  return ends.map((f, k) => Math.round(((f - (k ? ends[k - 1] : 0)) / GHOST_HZ) * 1000) / 1000);
+}
+
+// The best-ranked ghost on a track's board (normally #1's). From the full-race board it's the
+// whole run; from the lap board it's just the record lap (lapOnly), when the file has the lap
+// times to find it (older ghosts are the whole run).
+function ghostView(track, board = "laps") {
+  const list = records[board][track] || [];
+  const i = list.findIndex((e) => ghosts.has(ghostKey(track, e.pid, board)));
+  if (i < 0) return { t: "ghost", track, board, none: true };
   const e = list[i];
   try {
-    const g = JSON.parse(readFileSync(join(GHOST_DIR, ghostKey(track, e.pid) + ".json"), "utf8"));
-    return { t: "ghost", track, rank: i + 1, name: e.name, char: g.char, kart: g.kart, look: lookOf(g.char, g.look), lap: e.time, time: g.time, frames: g.frames };
+    const g = JSON.parse(readFileSync(join(GHOST_DIR, ghostKey(track, e.pid, board) + ".json"), "utf8"));
+    let frames = g.frames, lapOnly = false;
+    if (board === "laps" && !Array.isArray(g.laps)) {
+      // An older ghost without lap times: find them along its path, and keep them
+      const laps = lapsFromFrames(track, g.frames);
+      if (laps && laps.some((l) => Math.abs(l - e.time) < 0.2)) {
+        g.laps = laps;
+        try {
+          const file = join(GHOST_DIR, ghostKey(track, e.pid) + ".json");
+          writeFileSync(file + ".tmp", JSON.stringify(g));
+          renameSync(file + ".tmp", file);
+        } catch {}
+      }
+    }
+    if (board === "laps" && Array.isArray(g.laps) && g.laps.length) {
+      const b = g.laps.indexOf(Math.min(...g.laps));
+      const start = Math.round(g.laps.slice(0, b).reduce((x, y) => x + y, 0) * GHOST_HZ);
+      const n = Math.round(g.laps[b] * GHOST_HZ);
+      if (start + n <= frames.length + 2) {
+        frames = frames.slice(start, start + n + 1);
+        lapOnly = true;
+      }
+    }
+    return { t: "ghost", track, board, rank: i + 1, name: e.name, char: g.char, kart: g.kart, look: lookOf(g.char, g.look), lap: board === "laps" ? e.time : undefined, time: board === "laps" && lapOnly ? e.time : g.time, lapOnly, frames };
   } catch {
-    return { t: "ghost", track, none: true };
+    return { t: "ghost", track, board, none: true };
   }
 }
+
+// Ghosts saved before lap times were kept (and before the full-race board had ghosts): when a
+// player's lap-board ghost is the same run as their full-race entry (same total time), give it
+// that entry's lap times, and make it the full-race entry's ghost too.
+(function backfillGhosts() {
+  let n = 0;
+  records.laps.forEach((list, track) => {
+    for (const e of list) {
+      const key = ghostKey(track, e.pid);
+      if (!ghosts.has(key)) continue;
+      const run = records.runs[track]?.find((r) => r.pid === e.pid);
+      if (!run?.laps?.length) continue;
+      try {
+        const file = join(GHOST_DIR, key + ".json");
+        const g = JSON.parse(readFileSync(file, "utf8"));
+        if (Math.abs(g.time - run.time) > 0.05) continue; // a different run
+        if (!g.laps) {
+          g.laps = run.laps;
+          writeFileSync(file + ".tmp", JSON.stringify(g));
+          renameSync(file + ".tmp", file);
+          n++;
+        }
+        if (!ghosts.has(ghostKey(track, e.pid, "runs"))) {
+          saveGhost(track, run, g, run.laps, "runs");
+          n++;
+        }
+      } catch {}
+    }
+  });
+  if (n) console.log(`ghosts: backfilled ${n} files`);
+})();
 
 const validPid = (pid) => typeof pid === "string" && /^[a-z0-9]{16,40}$/i.test(pid);
 const profileFrom = (msg) => ({ name: msg.name ? cleanName(msg.name) : undefined, char: clampInt(msg.char, 0, CHARACTER_COUNT - 1, 0), kart: clampInt(msg.kart, 0, KART_COUNT - 1, 0) });
@@ -496,7 +580,7 @@ function submitLaps(client, msg) {
       // The run this lap came from becomes the entry's ghost (or it has none).
       const entry = lapList.find((e) => e.pid === msg.pid);
       if (entry) {
-        if (validGhost(msg.ghost, msg.laps)) saveGhost(track, entry, msg.ghost);
+        if (validGhost(msg.ghost, msg.laps)) saveGhost(track, entry, msg.ghost, msg.laps);
         else dropGhost(track, entry.pid);
       }
     }
@@ -505,7 +589,15 @@ function submitLaps(client, msg) {
   if (all.length === TT_LAPS && times.length === TT_LAPS) {
     const laps = times.map(round);
     const run = round(times.reduce((a, b) => a + b, 0));
-    if (recordTime(records.runs[track], msg.pid, run, { ...racer, laps }, null, (e, was) => noteBeaten(e.pid, "runs", track, was, racer, run))) changed = true;
+    if (recordTime(records.runs[track], msg.pid, run, { ...racer, laps }, (e) => dropGhost(track, e.pid, "runs"), (e, was) => noteBeaten(e.pid, "runs", track, was, racer, run))) {
+      changed = true;
+      // This run becomes the full-race entry's ghost (the track record's, if it's #1)
+      const entry = records.runs[track].find((e) => e.pid === msg.pid);
+      if (entry) {
+        if (validGhost(msg.ghost, msg.laps)) saveGhost(track, entry, msg.ghost, msg.laps, "runs");
+        else dropGhost(track, entry.pid, "runs");
+      }
+    }
   }
   // Renaming yourself updates your entries even without a faster time.
   for (const board of ["laps", "runs"])
@@ -600,7 +692,7 @@ function flushAlerts(pid) {
     const also = items.length > 1 ? (items.some((x) => x.kind === "board" && x.board !== top.board && x.track === top.track) ? " They beat your " + (top.board === "laps" ? "full race" : "best lap") + " too." : " And there's more news inside.") : "";
     body = `Their ${top.board === "laps" ? "lap" : "race"}: ${fmtTime(top.time)}.${also} Tap to win it back!`;
   }
-  push.notify(pid, "beaten", { title, body, url: "/chamokart/", tag: `beaten-${top.track}` });
+  push.notify(pid, "beaten", { title, body, url: SITE, tag: `beaten-${top.track}` });
 }
 
 // The player's notes (once: reading them clears them), minus any rank they've already won back.
@@ -940,10 +1032,10 @@ function mergePlayer(from, to) {
       const lose = keepB ? a : b;
       if (lose) {
         list.splice(list.indexOf(lose), 1);
-        if (board === "laps") dropGhost(track, lose.pid);
+        dropGhost(track, lose.pid, board);
       }
       if (keepB) {
-        if (board === "laps") moveGhost(track, from, to);
+        moveGhost(track, from, to, board);
         b.pid = to;
         if (name) b.name = name;
       }
@@ -984,8 +1076,8 @@ function mergePlayer(from, to) {
   saveAccounts();
 }
 
-function moveGhost(track, from, to) {
-  const a = ghostKey(track, from), b = ghostKey(track, to);
+function moveGhost(track, from, to, board = "laps") {
+  const a = ghostKey(track, from, board), b = ghostKey(track, to, board);
   if (!ghosts.has(a)) return;
   try {
     renameSync(join(GHOST_DIR, a + ".json"), join(GHOST_DIR, b + ".json"));
@@ -1107,7 +1199,7 @@ function submitFeedback(client, msg) {
   feedback.push(entry);
   if (feedback.length > FEEDBACK_KEPT) feedback.splice(0, feedback.length - FEEDBACK_KEPT);
   saveFeedback();
-  push.admins({ title: `💬 Feedback from ${entry.name}`, body: text.slice(0, 140), url: "/chamokart/dashboard/#feedback", tag: "feedback-" + entry.id });
+  push.admins({ title: `💬 Feedback from ${entry.name}`, body: text.slice(0, 140), url: siteUrl("dashboard/#feedback"), tag: "feedback-" + entry.id });
   send(client, { t: "ok", ok: true });
 }
 
@@ -1151,9 +1243,10 @@ function statsAction(a) {
 // what they're up to, and can challenge them to a private room. Players are shown by a
 // public id (uid) derived from their private one, which stays secret.
 
-const push = createPush({ dir: STATE_DIR, subject: "https://jgrivera.com/chamokart/" });
-const bugs = createBugs({ file: BUGS_FILE, notify: (m) => push.admins(m) });
-const features = createFeatures({ file: FEATURES_FILE, notify: (m) => push.admins(m) });
+const push = createPush({ dir: STATE_DIR, subject: SITE, site: SITE });
+// Their notifications link to the dashboard, on whichever address the game lives at
+const bugs = createBugs({ file: BUGS_FILE, notify: (m) => push.admins({ ...m, url: siteUrl(m.url) }) });
+const features = createFeatures({ file: FEATURES_FILE, notify: (m) => push.admins({ ...m, url: siteUrl(m.url) }) });
 const serverStarted = now();
 const PLAYING_GRACE_MS = Number(process.env.PLAYING_GRACE_MS ?? 5 * 60000); // after a restart everyone reconnects: don't announce them all
 const AWAY_BEFORE_ANNOUNCE_MS = 20 * 60000;
@@ -1236,7 +1329,7 @@ async function onChallenge(client, msg) {
   if (targets.length) {
     for (const c of targets) send(c, { t: "challenge", id, from, code: room.code });
     delivered = "live";
-  } else if (await push.challenge(to, { title: `⚔️ ${client.name} challenges you!`, body: "Tap to join their room and race.", url: `/chamokart/#room=${room.code}`, tag: "challenge" })) {
+  } else if (await push.challenge(to, { title: `⚔️ ${client.name} challenges you!`, body: "Tap to join their room and race.", url: `${SITE}#room=${room.code}`, tag: "challenge" })) {
     delivered = "push";
   }
   send(client, { t: "challenge-sent", to, delivered });
@@ -1426,7 +1519,7 @@ function handle(client, msg) {
       if (validPid(msg.pid)) push.unsubscribe(msg.pid, typeof msg.endpoint === "string" ? msg.endpoint : null);
       return send(client, { t: "push-ok", ok: true });
     case "ghost":
-      return send(client, ghostView(clampInt(msg.track, 0, TRACK_COUNT - 1, 0)));
+      return send(client, ghostView(clampInt(msg.track, 0, TRACK_COUNT - 1, 0), msg.board === "runs" ? "runs" : "laps"));
     case "daily":
       return send(client, dailyView(msg.pid));
     case "dailyrun":
@@ -1596,6 +1689,50 @@ function handle(client, msg) {
 
 // ---------------------------------------------------------------- server
 
+// ---------------------------------------------------------------- moving house
+// The game moved to kartchaos.com, and a browser's saved data (player id, settings, custom
+// racer, ghosts…) stays with the old address. The old page POSTs it here, gets a one-time
+// token, and sends the player to kartchaos.com/#import=TOKEN, where it's fetched (once).
+const moves = new Map(); // token -> { data, at }
+const MOVE_TTL_MS = 30 * 60000;
+const MOVE_MAX_BYTES = 4 * 1024 * 1024;
+
+function handleMigrate(req, res) {
+  const reply = (code, obj) => {
+    res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store, private" });
+    res.end(JSON.stringify(obj));
+  };
+  for (const [k, v] of moves) if (now() - v.at > MOVE_TTL_MS) moves.delete(k);
+  if (req.method === "POST") {
+    if (moves.size >= 500) return reply(503, { error: "busy" });
+    let size = 0;
+    const chunks = [];
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > MOVE_MAX_BYTES) req.destroy();
+      else chunks.push(c);
+    });
+    req.on("end", () => {
+      let body;
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        return reply(400, { error: "bad" });
+      }
+      const data = {};
+      for (const [k, v] of Object.entries(body?.data || {})) if (/^ck_[A-Za-z0-9_]{1,48}$/.test(k) && typeof v === "string") data[k] = v;
+      const token = randomBytes(18).toString("base64url");
+      moves.set(token, { data, at: now() });
+      reply(200, { token });
+    });
+    return;
+  }
+  const token = new URL(req.url, "http://x").searchParams.get("token");
+  const m = token && moves.get(token);
+  if (m) moves.delete(token);
+  reply(m ? 200 : 404, m ? { data: m.data } : { error: "gone" });
+}
+
 const httpServer = createServer((req, res) => {
   // Stats for /chamokart/dashboard. The server only listens on localhost and nginx only
   // proxies this path behind the stats page's password (the public ws route always maps to "/").
@@ -1627,6 +1764,7 @@ const httpServer = createServer((req, res) => {
     res.end(JSON.stringify({ ...stats.view(), records: records.laps, runs: records.runs, feedback: fb, bugs: bugs.view(), ideas: features.view((pid) => stats.info(pid)?.name), pushKey: push.publicKey, adminEndpoints: push.adminEndpoints(), online: { clients: clients.size, rooms: rooms.size }, now: now() }));
     return;
   }
+  if (req.url.startsWith("/migrate")) return handleMigrate(req, res);
   if (req.url === "/health" || req.url === "/") {
     res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
     res.end(JSON.stringify({ ok: true, clients: clients.size, rooms: rooms.size }));
@@ -1730,7 +1868,7 @@ function announceDaily() {
     {
       title: "📅 Today's challenge is up!",
       body: `${TRACKS[ch.track]?.name} · ${racer} in the ${KARTS[ch.kart]?.name} · ${ch.cc}cc.${winner ? ` Yesterday's winner: ${winner.name} 🥇` : ""} Can you top the board?`,
-      url: "/chamokart/#daily",
+      url: SITE + "#daily",
       tag: "daily",
     },
     isOnline
@@ -1739,7 +1877,7 @@ function announceDaily() {
 }
 setInterval(announceDaily, 60000);
 
-httpServer.listen(PORT, HOST, () => console.log(`Chamo Kart server on ${HOST}:${PORT}`));
+httpServer.listen(PORT, HOST, () => console.log(`Kart Chaos server on ${HOST}:${PORT}`));
 
 const shutdown = () => {
   for (const c of clients.values()) c.socket.close(1001, "server restarting");
