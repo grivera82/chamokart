@@ -75,15 +75,15 @@ The server rejects laps faster than `MIN_LAP_S` in `server.mjs`, which is about 
 Lap times come from the player's browser, though, so a determined cheater could still post a fake one.
 
 The boards are saved to `$RECORDS_FILE`, or `$STATE_DIRECTORY/records.json`, or `./records.json` if neither is set.
-In production, a systemd drop-in (`StateDirectory=chamokart`) puts them at `/var/lib/chamokart/records.json`.
+In production, a systemd drop-in (`StateDirectory=kartchaos`) puts them at `/var/lib/kartchaos/records.json`.
 Each board entry can also have a **ghost**: the whole Time Trial run its time came from (20 frames a second, about 45 KB, with its lap times). The game uploads it with the laps when the run could improve one of the player's entries. The server checks that it matches the lap times, keeps it in `$STATE_DIRECTORY/ghosts/` (`<track>-<player id>.json` for the lap board, `r<track>-<player id>.json` for the full-race board), and deletes it when the entry falls off the board. Asked for the lap board's ghost, the server sends just the record lap.
 
 The server keeps the boards in memory, so to remove an entry, stop the service first:
 
 ```sh
-systemctl stop chamokart-ws
-# edit /var/lib/chamokart/records.json (entries are sorted by "time", fastest first)
-systemctl start chamokart-ws
+systemctl stop kartchaos-ws
+# edit /var/lib/kartchaos/records.json (entries are sorted by "time", fastest first)
+systemctl start kartchaos-ws
 ```
 
 ## Players, challenges and notifications
@@ -105,20 +105,20 @@ It shuffles the tracks in blocks (one day per track), so each track comes up onc
 Each new track starts a new era in `ERAS` from the day after it ships (Mars Aliens on 2026-09-27; Miami Vice and Zoo City both on 2026-09-28); earlier days keep their rotation so their boards stay valid.
 The server imports the same file to check that a submitted run belongs to today's challenge (or yesterday's, for 15 minutes after midnight).
 
-- **Boards:** the server keeps each player's best 3-lap time per day in `$DAILY_FILE`, or `$STATE_DIRECTORY/daily.json` (`/var/lib/chamokart/daily.json` in production). It keeps the last 8 days.
+- **Boards:** the server keeps each player's best 3-lap time per day in `$DAILY_FILE`, or `$STATE_DIRECTORY/daily.json` (`/var/lib/kartchaos/daily.json` in production). It keeps the last 8 days.
 - **Checks:** each run needs 3 laps that add up to the total time, and every lap must be at least `MIN_LAP_S` for the track, scaled by the day's speed class. As with the fastest-lap boards, a determined cheater could still post a fake time.
-- **Editing:** as with `records.json`, stop `chamokart-ws` before you edit `daily.json`.
+- **Editing:** as with `records.json`, stop `kartchaos-ws` before you edit `daily.json`.
 
 ## Stats page
 
 `/dashboard/` is a private dashboard that shows each player's visits, races, results, IP address and location.
-nginx protects it with basic auth, using the password file `/etc/nginx/chamokart-stats.htpasswd`.
-To add or change a login, run `htpasswd -B /etc/nginx/chamokart-stats.htpasswd <user>`.
-On the tailnet it needs no password: `https://<this machine's tailnet name>:8443/chamokart/dashboard/`. `tailscale serve --https=8443` proxies that to a localhost-only nginx site, `/etc/nginx/sites-available/chamokart-tailnet`.
+nginx protects it with basic auth, using the password file `/etc/nginx/kartchaos-stats.htpasswd`.
+To add or change a login, run `htpasswd -B /etc/nginx/kartchaos-stats.htpasswd <user>`.
+On the tailnet it needs no password: `https://<this machine's tailnet name>:8443/chamokart/dashboard/`. `tailscale serve --https=8443` proxies that to a localhost-only nginx site, `/etc/nginx/sites-available/kartchaos-tailnet`.
 
 - **What the game reports:** a `hello` on every load, each finished Grand Prix, Versus or Time Trial race, and each finished cup. Each report goes over a short-lived WebSocket.
 - **Online races:** recorded by the server itself when each race ends.
-- **Storage:** `$STATE_DIRECTORY/stats.json`, which is `/var/lib/chamokart/stats.json` in production.
+- **Storage:** `$STATE_DIRECTORY/stats.json`, which is `/var/lib/kartchaos/stats.json` in production.
 - **Location data:** comes from Cloudflare's request headers. `CF-Connecting-IP` and `CF-IPCountry` are always sent. City and region need Cloudflare's *Add visitor location headers* managed transform.
 - **Data endpoint:** the page loads its data from `/dashboard/data`. nginx proxies that to `127.0.0.1:8792/stats`, behind the same password.
 
@@ -130,7 +130,7 @@ It only reports errors from the game's own files, at most 5 per page load, with 
 `bugs.mjs` in the server groups the same error from the same place in the code into one bug, and keeps the latest 5 reports of each in `$STATE_DIRECTORY/bugs.json`.
 They're listed under 🐞 Bugs on the dashboard. Devices with dashboard notifications on get a ping for each new bug.
 
-**🔧 Fix with Claude** hands a bug to the fixer service (`/opt/chamokart-fixer`, see its README):
+**🔧 Fix with Claude** hands a bug to the fixer service (`/opt/kartchaos-fixer`, see its README):
 
 1. Claude reproduces and fixes the bug in a locked-down copy of the game.
 2. You review its report and diff, then approve, ask for changes, or reject.
@@ -153,7 +153,7 @@ Players post ideas and vote for them at `/features/` (`features/index.html`). Th
 
 ## Hosting
 
-The game lives at **https://kartchaos.com/**, behind Cloudflare. It used to be **Chamo Kart** at `jgrivera.com/chamokart/`, which is why the server-side names still say `chamokart`: the `chamokart-ws` service, `/var/lib/chamokart`, the stats password file and the fixer service.
+The game lives at **https://kartchaos.com/**, behind Cloudflare. It used to be **Chamo Kart** at `jgrivera.com/chamokart/`. The server-side names were renamed on 2026-10-07 (the `kartchaos-ws` and `kartchaos-fixer` services, `/var/lib/kartchaos`, the stats password file); only the game's folder on the server is still `/var/www/jgrivera.com/chamokart`.
 
 - **nginx:** `sites-available/kartchaos.com` serves the game directory at the root of the domain, with the rules in `snippets/kartchaos-game.conf` (`/ws`, `/migrate`, the dashboard, no-cache for the page and scripts, and 404s for the server's own files).
 - **The old address:** `jgrivera.com/chamokart/` serves `moved.html`. It hands the browser's saved data (everything in `localStorage` starting with `ck_`: the player id, settings, custom racer, ghosts…) to the server's one-time `/migrate` endpoint and forwards to `kartchaos.com/#import=<token>`, keeping room, ghost challenge and player links. The first script in `index.html` picks the data up there. Every other old URL redirects to the same path on kartchaos.com.
