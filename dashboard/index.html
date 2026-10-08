@@ -149,15 +149,20 @@
     .fix-err { background: #ffe1e1; border-radius: 10px; padding: 6px 10px; font-weight: 800; font-size: 13px; margin-top: 8px; overflow-wrap: anywhere; }
 
     /* 📈 analytics (dashboard/analytics.js) */
-    .an-nav { display: flex; gap: 8px; flex-wrap: wrap; }
-    .an-nav a { color: #fff; text-decoration: none; font-weight: 900; font-size: 14px; background: rgba(0, 0, 0, 0.22); padding: 5px 12px; border-radius: 999px; }
-    .an-nav a:hover { background: rgba(0, 0, 0, 0.38); }
-    .an-section { display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 12px; }
-    .an-h { font-family: var(--display); font-weight: 400; font-size: 34px; margin: 6px 0 0; color: #fff; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; letter-spacing: 0.5px; scroll-margin-top: 12px; }
-    .an-top-row { display: flex; align-items: center; gap: 12px 18px; flex-wrap: wrap; }
-    .an-top-row .an-h { margin: 0; }
+    /* tabs: one section at a time, the choice kept in the URL (#analytics, #inbox, #players, #all-time) */
+    .tabs { position: sticky; top: max(8px, env(safe-area-inset-top)); z-index: 20; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 5px; background: var(--ink); border-radius: 16px; box-shadow: 0 6px 0 rgba(0, 0, 0, 0.25); }
+    .tabs a { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 6px; border-radius: 12px; color: #fff; text-decoration: none; font-weight: 900; font-size: 16px; white-space: nowrap; }
+    .tabs a i { font-style: normal; }
+    .tabs a:hover { background: rgba(255, 255, 255, 0.12); }
+    .tabs a[aria-selected="true"] { background: #fff; color: var(--ink); }
+    .tabs a:focus-visible { outline: 3px solid var(--yellow); outline-offset: 1px; }
+    .tab-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--red); color: #fff; font-size: 12px; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--ink); }
+    .tab-page { display: flex; flex-direction: column; gap: 18px; }
+    .tab-page[hidden] { display: none; }
+    .tab-page .st-panel, .tab-page h2 { scroll-margin-top: 80px; }
     .an-filters { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
     .an-seg button { padding: 6px 12px; font-size: 14px; }
+    .an-filters .an-seg { flex: none; }
     .an-note { color: #fff; font-weight: 800; font-size: 13px; opacity: 0.9; }
     .an-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
     .an-tile { display: flex; flex-direction: column; cursor: help; }
@@ -228,7 +233,9 @@
       .an-tiles { grid-template-columns: repeat(2, 1fr); }
     }
     @media (max-width: 600px) {
-      .an-h { font-size: 28px; }
+      .tabs a { flex-direction: column; gap: 1px; font-size: 12px; padding: 6px 2px; }
+      .tabs a i { font-size: 18px; line-height: 1.1; }
+      .tab-badge { position: absolute; top: 2px; right: 4px; min-width: 18px; height: 18px; line-height: 18px; font-size: 11px; padding: 0 5px; }
       .an-tile b { font-size: 26px; }
       .an-kpis { grid-template-columns: 1fr; }
       .an-heat { grid-template-columns: 30px repeat(24, minmax(8px, 1fr)); gap: 1px; }
@@ -253,15 +260,15 @@
       </div>
       <button class="btn" id="refresh">↻ Refresh</button>
     </header>
-    <nav class="an-nav">
-      <a href="#analytics">📈 Analytics</a><a href="#feedback">💬 Feedback</a><a href="#bugs">🐞 Bugs</a><a href="#ideas">💡 Ideas</a><a href="#players-panel">👥 Players</a><a href="#all-time">🏆 All time</a>
+    <nav class="tabs" role="tablist" aria-label="Dashboard sections">
+      <a href="#analytics" role="tab" data-tab="analytics"><i>📈</i><span>Analytics</span></a>
+      <a href="#inbox" role="tab" data-tab="inbox"><i>📥</i><span>Inbox</span><b class="tab-badge" id="inbox-badge" hidden></b></a>
+      <a href="#players" role="tab" data-tab="players"><i>👥</i><span>Players</span></a>
+      <a href="#all-time" role="tab" data-tab="all-time"><i>🏆</i><span>All time</span></a>
     </nav>
 
-    <section class="an-section" id="analytics">
-      <div class="an-top-row">
-        <h2 class="an-h">📈 Analytics</h2>
-        <div class="an-filters" id="an-filters"></div>
-      </div>
+    <section class="tab-page an-section" data-page="analytics" role="tabpanel">
+      <div class="an-filters" id="an-filters"></div>
       <div class="an-tiles" id="an-tiles"></div>
       <section class="panel st-panel an-card" id="an-main"></section>
       <div class="st-grid">
@@ -279,7 +286,7 @@
       </div>
     </section>
 
-
+    <div class="tab-page" data-page="inbox" role="tabpanel">
     <section class="panel st-panel" id="feedback-panel">
       <h2 id="feedback">💬 Feedback <small id="fb-count"></small></h2>
       <div class="fb-tools">
@@ -307,16 +314,20 @@
       <p class="fb-ctx" id="idea-auto"></p>
       <div id="idea-list"></div>
     </section>
+    </div>
 
+    <div class="tab-page" data-page="players" role="tabpanel">
     <section class="panel st-panel" id="players-panel">
       <h2>Players <small id="players-count"></small></h2>
       <div class="st-tools">
         <input id="search" placeholder="Search name, city, country or IP…" autocomplete="off" spellcheck="false" />
       </div>
-      <div class="st-table-wrap"><table class="st-table" id="players"></table></div>
+      <div class="st-table-wrap"><table class="st-table" id="players-table"></table></div>
     </section>
 
-    <h2 class="an-h" id="all-time">🏆 All time</h2>
+    </div>
+
+    <div class="tab-page" data-page="all-time" role="tabpanel">
     <section class="st-tiles" id="tiles"></section>
     <div class="st-grid">
       <section class="panel st-panel">
@@ -346,6 +357,7 @@
       <div id="laps-tabs" class="seg st-laps-tabs"></div>
       <div id="laps" class="results-table"></div>
     </section>
+    </div>
   </div>
   <div id="tip"></div>
 
@@ -464,8 +476,63 @@
       return f;
     };
 
-    // ------------------------------------------------------------ render
     let data = null;
+
+    // ------------------------------------------------------------ tabs
+    // One section at a time, named in the URL so refresh and Back keep it. Older links
+    // (notifications, bookmarks) name a panel or an item instead: they open the tab it's on.
+    const TABS = ["analytics", "inbox", "players", "all-time"];
+    const tabFor = (hash) => {
+      const h = hash.replace(/^#/, "");
+      if (TABS.includes(h)) return h;
+      if (/^(feedback|bugs|ideas|bug-\d+|idea-\d+)$/.test(h)) return "inbox";
+      if (h === "players-panel") return "players";
+      return "analytics";
+    };
+    let tab = null;
+    function showTab(name) {
+      if (name === tab) return;
+      tab = name;
+      for (const a of document.querySelectorAll(".tabs a")) {
+        a.setAttribute("aria-selected", String(a.dataset.tab === name));
+        a.tabIndex = a.dataset.tab === name ? 0 : -1;
+      }
+      for (const page of document.querySelectorAll(".tab-page")) page.hidden = page.dataset.page !== name;
+      // The charts size themselves to their box, which has no width while the tab is hidden
+      if (name === "analytics" && data) showAnalytics(data, { regionName, flag, avatar });
+    }
+    for (const a of document.querySelectorAll(".tabs a")) {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (a.dataset.tab === tab) return;
+        history.pushState(null, "", "#" + a.dataset.tab);
+        showTab(a.dataset.tab);
+        scrollTo({ top: 0 });
+      });
+      // Arrow keys move between tabs
+      a.addEventListener("keydown", (e) => {
+        const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+        if (!step) return;
+        e.preventDefault();
+        const next = document.querySelector(`.tabs a[data-tab="${TABS[(TABS.indexOf(tab) + step + TABS.length) % TABS.length]}"]`);
+        next.focus();
+        next.click();
+      });
+    }
+    addEventListener("popstate", () => showTab(tabFor(location.hash)));
+    showTab(tabFor(location.hash));
+
+    // The red count on the Inbox tab: new feedback, open bugs and fixes or features to review
+    const inbox = { feedback: 0, bugs: 0, ideas: 0 };
+    function updateBadge() {
+      const n = inbox.feedback + inbox.bugs + inbox.ideas;
+      const b = $("#inbox-badge");
+      b.hidden = !n;
+      b.textContent = n > 99 ? "99+" : String(n);
+      document.title = (n ? `(${n}) ` : "") + "Kart Chaos Stats";
+    }
+
+    // ------------------------------------------------------------ render
     let sortKey = "last", sortAsc = false, openPid = null, lapTrack = 0;
 
     const COLUMNS = [
@@ -571,7 +638,7 @@
           return sortAsc ? d : -d;
         });
       $("#players-count").textContent = q ? `${list.length} of ${data.players.length}` : `${data.players.length} total`;
-      const table = $("#players");
+      const table = $("#players-table");
       table.innerHTML = "";
       const head = el("tr");
       for (const c of COLUMNS) {
@@ -702,6 +769,8 @@
       const count = $("#fb-count");
       count.innerHTML = "";
       if (fresh) count.append(el("span", "fb-new", `${fresh} new`), " ");
+      inbox.feedback = fresh;
+      updateBadge();
       if (list.length) count.append(`${list.length} total`);
       const root = $("#fb-list");
       root.innerHTML = "";
@@ -1023,11 +1092,13 @@
       const ready = jobs.filter((j) => j.kind === "bug" && j.status === "ready").length;
       if (open.length) count.append(el("span", "fb-new", `${open.length} open`), " ");
       if (ready) count.append(el("span", "chip green", `${ready} fix${ready > 1 ? "es" : ""} to review`), " ");
+      inbox.bugs = open.length + ready;
+      updateBadge();
       if (list.length) count.append(`${list.length} total`);
 
       const note = $("#fixer-note");
       note.hidden = !!fixer?.ready;
-      note.textContent = !fixer ? "The fixer service isn't answering, so Claude can't fix bugs right now (systemctl status chamokart-fixer)." : "Claude isn't connected yet. See /opt/chamokart-fixer/README.md on the server to set it up.";
+      note.textContent = !fixer ? "The fixer service isn't answering, so Claude can't fix bugs right now (systemctl status kartchaos-fixer)." : "Claude isn't connected yet. See /opt/kartchaos-fixer/README.md on the server to set it up.";
 
       const root = $("#bug-list");
       root.innerHTML = "";
@@ -1096,6 +1167,8 @@
       count.innerHTML = "";
       const toReview = jobs.filter((j) => j.status === "ready").length;
       if (toReview) count.append(el("span", "chip green", `${toReview} to review`), " ");
+      inbox.ideas = toReview;
+      updateBadge();
       if (list.length) count.append(`${list.length} total`);
       $("#idea-auto").textContent = fixer ? `Ideas with ${2} backers get built on their own, up to ${fixer.autoPerDay} a day (${fixer.autoLeft} left today). 🔧 Build now always works.` : "";
 

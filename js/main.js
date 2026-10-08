@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { CHARACTERS, KARTS, TRACKS, CUPS, POINTS, ITEMS, botName, trackDef } from "./data.js?v=20";
 import { CUSTOM, DEFAULT_LOOK, LOOK_OPTIONS, STAT_KEYS, STAT_POINTS, STAT_MIN, STAT_MAX, cleanLook, lookKey, randomLook } from "./look.js?v=3";
 import { getTrack } from "./sim/race.js?v=22";
-import { RaceSession } from "./game.js?v=40";
+import { RaceSession } from "./game.js?v=42";
 import { HUD, ITEM_SVG, fmtTime, ordinal } from "./hud.js?v=26";
 import { audio } from "./audio.js?v=11";
 import { input } from "./input.js?v=7";

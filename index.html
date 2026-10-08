@@ -32,9 +32,28 @@
   <meta name="apple-mobile-web-app-title" content="Kart Chaos" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="manifest" href="manifest.json" />
-  <meta name="robots" content="noindex, nofollow" />
-  <meta name="description" content="Kart Chaos: a kart racing game in your browser. Race CPUs in the Chamo Cup or race your friends online." />
-  <title>Kart Chaos</title>
+  <meta name="description" content="Kart Chaos is a free kart racing game that runs in your browser, on your phone or computer. Race the Chamo Cup, beat ghosts in Time Trial, take on the Daily Challenge or race your friends online. No download." />
+  <title>Kart Chaos – Free Kart Racing Game in Your Browser</title>
+  <link rel="canonical" href="https://kartchaos.com/" />
+  <!-- For search engines: what this page is -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "VideoGame",
+      "name": "Kart Chaos",
+      "url": "https://kartchaos.com/",
+      "image": "https://kartchaos.com/og-image.jpg?v=2",
+      "description": "A free kart racing game that runs in your browser. Race the Chamo Cup against CPUs, beat ghosts in Time Trial, take on the Daily Challenge or race your friends online. Works with keyboard, gamepad or touch.",
+      "genre": ["Racing", "Kart racing", "Arcade"],
+      "gamePlatform": ["Web browser", "Android", "iOS", "Windows", "macOS", "Linux"],
+      "applicationCategory": "GameApplication",
+      "operatingSystem": "Any",
+      "playMode": ["SinglePlayer", "MultiPlayer"],
+      "inLanguage": "en",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+  </script>
   <!-- Link previews (iMessage, WhatsApp, Telegram, Slack…). URLs must be absolute. -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Kart Chaos" />
@@ -55,7 +74,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=40" />
+  <link rel="stylesheet" href="css/style.css?v=41" />
   <script src="js/crash.js?v=1"></script>
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
@@ -74,11 +93,11 @@
   <!-- Title -->
   <section id="title" class="screen">
     <div class="title-wrap">
-      <div class="logo"><span class="l1">KART</span><span class="l2">CHAOS</span></div>
+      <h1 class="logo"><span class="l1">KART</span><span class="l2">CHAOS</span></h1>
       <p class="tagline">Start your engines!</p>
       <button class="btn big pulse" data-action="start">Press Start</button>
     </div>
-    <p class="footer-note">Keyboard, gamepad or touch · Best with sound on 🔊</p>
+    <p class="footer-note"><span class="blurb">Free kart racing in your browser: Grand Prix, Time Trial, Daily Challenge and online races with friends. No download.</span>Keyboard, gamepad or touch · Best with sound on 🔊</p>
   </section>
 
   <!-- Main menu -->
@@ -662,6 +681,6 @@
 
   <div id="toasts" class="toasts"></div>
 
-  <script type="module" src="js/main.js?v=65"></script>
+  <script type="module" src="js/main.js?v=67"></script>
 </body>
 </html>

@@ -13,6 +13,10 @@ import { labelTexture } from "./view/textures.js?v=9";
 import { Tutorial } from "./tutorial.js?v=5";
 import { ReplayRecorder, ReplayPlayer } from "./replay.js?v=5";
 
+// Optional per-device handling tune (js/sim/tune.js); 1× when it isn't there
+let tune = () => 1;
+import("./sim/tune.js?v=2").then((m) => (tune = m.default)).catch(() => {});
+
 const SEND_HZ = 20;
 const INTERP_DELAY = 110;
 const SPATIAL = new Set(["wall", "hit:spin", "hit:tumble", "hit:squish", "use:banana", "use:green", "use:red", "use:bomb", "use:boomerang", "use:fire", "boost", "bump", "land", "chomp", "bullet", "boo"]);
@@ -48,6 +52,7 @@ export class RaceSession {
     });
     this.view.resize(app.width, app.height);
     this.me = this.sim.kartById(cfg.localId);
+    if (this.me && cfg.mode !== "attract" && cfg.mode !== "tutorial") this.me.speedMul = tune(app.pid);
     // D is a special move for some cars: the CX-9 opens its doors, Bumblebee transforms.
     this.specialCar = this.me && cfg.mode !== "attract" ? CHARACTERS[this.me.char]?.car : null;
     this.hasSpecial = this.specialCar === "cx9" || this.specialCar === "transformer";
